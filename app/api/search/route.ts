@@ -39,10 +39,15 @@ export async function GET(request: NextRequest) {
     apiUrl.searchParams.set("hits", "10");
     apiUrl.searchParams.set("imageFlag", "1");
 
-    const response = await fetch(apiUrl.toString(), {
-      cache: "no-store",
-    });
-
+const response = await fetch(apiUrl.toString(), {
+  cache: "no-store",
+  headers: {
+    Referer: "https://rakuten-mercari-tool.vercel.app/",
+    Origin: "https://rakuten-mercari-tool.vercel.app",
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+  },
+});
     const data = await response.json();
 
     if (!response.ok) {
