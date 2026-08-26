@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const keyword = searchParams.get("keyword");
+   const { searchParams } = new URL(request.url);
+const keyword = searchParams.get("keyword");
+const page = searchParams.get("page") || "1";
 
     if (!keyword) {
       return NextResponse.json(
@@ -36,9 +37,9 @@ export async function GET(request: NextRequest) {
     apiUrl.searchParams.set("applicationId", applicationId);
     apiUrl.searchParams.set("accessKey", accessKey);
     apiUrl.searchParams.set("keyword", keyword);
-    apiUrl.searchParams.set("hits", "10");
-    apiUrl.searchParams.set("imageFlag", "1");
-
+   apiUrl.searchParams.set("hits", "30");
+apiUrl.searchParams.set("page", page);
+apiUrl.searchParams.set("imageFlag", "1");
 const response = await fetch(apiUrl.toString(), {
   cache: "no-store",
   headers: {

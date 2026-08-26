@@ -20,12 +20,18 @@ type MercariPriceSet = {
   price3: string;
 };
 
+type SortMode =
+  | "none"
+  | "priceAsc"
+  | "priceDesc"
+  | "profitDesc";
+
 export default function Home() {
   const [keyword, setKeyword] = useState("");
   const [products, setProducts] = useState<RakutenProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
+  const [currentPage, setCurrentPage] = useState(1);
   const [mercariKeywords, setMercariKeywords] = useState<
     Record<string, string>
   >({});
@@ -38,13 +44,15 @@ export default function Home() {
   const [minProfitRate, setMinProfitRate] = useState("20");
   const [shippingCost, setShippingCost] = useState("750");
 
-  // 自分で上乗せする楽天ポイント率
   const [extraPointRate, setExtraPointRate] = useState("0");
 
-  const [sortByProfit, setSortByProfit] = useState(false);
-  const [candidateOnly, setCandidateOnly] = useState(false);
+  const [sortMode, setSortMode] =
+    useState<SortMode>("none");
 
-  const searchProducts = async () => {
+  const [candidateOnly, setCandidateOnly] =
+    useState(false);
+
+   const searchProducts= async (pageNumber = 1) => {
     if (!keyword.trim()) {
       setError("商品名を入力してください");
       return;
@@ -54,23 +62,30 @@ export default function Home() {
     setError("");
     setProducts([]);
     setCandidateOnly(false);
-    setSortByProfit(false);
+    setSortMode("none");
 
     try {
-      const response = await fetch(
-        `/api/search?keyword=${encodeURIComponent(keyword)}`
-      );
+     const response = await fetch(
+ `/api/search?keyword=${encodeURIComponent(keyword)}&page=${pageNumber}`
+);
 
       const data = await response.json();
 
       if (!response.ok || !data.success) {
         throw new Error(
-          data.message || "楽天の商品検索に失敗しました"
+          data.message ||
+            "楽天の商品検索に失敗しました"
         );
       }
 
-      const items: RakutenProduct[] = (data.items || []).map(
-        (entry: { Item?: RakutenProduct } | RakutenProduct) => {
+      const items: RakutenProduct[] = (
+        data.items || []
+      ).map(
+        (
+          entry:
+            | { Item?: RakutenProduct }
+            | RakutenProduct
+        ) => {
           if ("Item" in entry && entry.Item) {
             return entry.Item;
           }
@@ -79,10 +94,12 @@ export default function Home() {
         }
       );
 
+      
+
       setProducts(items);
+      setCurrentPage(pageNumber);
 
       const keywordMap: Record<string, string> = {};
-
       items.forEach((product, index) => {
         const productKey =
           product.itemCode || String(index);
@@ -120,6 +137,7 @@ export default function Home() {
   ) => {
     setMercariPrices((prev) => ({
       ...prev,
+
       [productKey]: {
         price1: prev[productKey]?.price1 || "",
         price2: prev[productKey]?.price2 || "",
@@ -183,7 +201,8 @@ export default function Home() {
       averageMercariPrice * 0.1
     );
 
-    const shipping = Number(shippingCost) || 0;
+    const shipping =
+      Number(shippingCost) || 0;
 
     const profit =
       averageMercariPrice -
@@ -249,7 +268,27 @@ export default function Home() {
       );
   }
 
-  if (sortByProfit) {
+  if (sortMode === "priceAsc") {
+    displayedProducts = [
+      ...displayedProducts,
+    ].sort(
+      (a, b) =>
+        a.calculation.effectiveRakutenPrice -
+        b.calculation.effectiveRakutenPrice
+    );
+  }
+
+  if (sortMode === "priceDesc") {
+    displayedProducts = [
+      ...displayedProducts,
+    ].sort(
+      (a, b) =>
+        b.calculation.effectiveRakutenPrice -
+        a.calculation.effectiveRakutenPrice
+    );
+  }
+
+  if (sortMode === "profitDesc") {
     displayedProducts = [
       ...displayedProducts,
     ].sort(
@@ -268,14 +307,14 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-100 px-6 py-10">
       <div className="mx-auto max-w-6xl">
-
         <div className="mb-8">
           <h1 className="text-3xl font-bold">
             楽天 → メルカリ
           </h1>
 
           <p className="mt-2 text-gray-600">
-            楽天仕入れとメルカリ相場を比較して利益商品を探します
+            楽天仕入れとメルカリ相場を比較して
+            利益商品を探します
           </p>
         </div>
 
@@ -303,7 +342,7 @@ export default function Home() {
             <button
               onClick={searchProducts}
               disabled={loading}
-              className="rounded-lg bg-black px-8 py-3 font-bold text-white"
+              className="rounded-lg bg-black px-8 py-3 font-bold text-white disabled:opacity-50"
             >
               {loading
                 ? "検索中..."
@@ -329,7 +368,7 @@ export default function Home() {
                 onChange={(e) =>
                   setMinProfit(e.target.value)
                 }
-                className="w-full rounded-lg border px-4 py-3"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3"
               />
             </div>
 
@@ -344,7 +383,7 @@ export default function Home() {
                 onChange={(e) =>
                   setMinProfitRate(e.target.value)
                 }
-                className="w-full rounded-lg border px-4 py-3"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3"
               />
             </div>
 
@@ -359,7 +398,7 @@ export default function Home() {
                 onChange={(e) =>
                   setShippingCost(e.target.value)
                 }
-                className="w-full rounded-lg border px-4 py-3"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3"
               />
             </div>
 
@@ -375,7 +414,7 @@ export default function Home() {
                   setExtraPointRate(e.target.value)
                 }
                 placeholder="例：5"
-                className="w-full rounded-lg border px-4 py-3"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3"
               />
 
               <p className="mt-1 text-xs text-gray-500">
@@ -387,28 +426,75 @@ export default function Home() {
 
         {products.length > 0 && (
           <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
+            <p className="mb-3 font-bold">
+              並び替え・絞り込み
+            </p>
+
             <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() =>
+                  setSortMode("priceAsc")
+                }
+                className={`rounded-lg px-5 py-3 font-bold ${
+                  sortMode === "priceAsc"
+                    ? "bg-black text-white"
+                    : "bg-gray-100"
+                }`}
+              >
+                安い順
+              </button>
 
               <button
                 onClick={() =>
-                  setSortByProfit(
-                    (prev) => !prev
-                  )
+                  setSortMode("priceDesc")
                 }
-                className="rounded-lg bg-gray-100 px-5 py-3 font-bold"
+                className={`rounded-lg px-5 py-3 font-bold ${
+                  sortMode === "priceDesc"
+                    ? "bg-black text-white"
+                    : "bg-gray-100"
+                }`}
               >
-                {sortByProfit
-                  ? "✓ 利益が高い順"
-                  : "利益が高い順にする"}
+                高い順
               </button>
 
+              <button
+                onClick={() =>
+                  setSortMode("profitDesc")
+                }
+                className={`rounded-lg px-5 py-3 font-bold ${
+                  sortMode === "profitDesc"
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-100"
+                }`}
+              >
+                利益が高い順
+              </button>
+
+              <button
+                onClick={() =>
+                  setSortMode("none")
+                }
+                className={`rounded-lg px-5 py-3 font-bold ${
+                  sortMode === "none"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100"
+                }`}
+              >
+                元の順番
+              </button>
+
+          
               <button
                 onClick={() =>
                   setCandidateOnly(
                     (prev) => !prev
                   )
                 }
-                className="rounded-lg bg-gray-100 px-5 py-3 font-bold"
+                className={`rounded-lg px-5 py-3 font-bold ${
+                  candidateOnly
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-100"
+                }`}
               >
                 {candidateOnly
                   ? "✓ 仕入れ候補だけ表示中"
@@ -419,36 +505,49 @@ export default function Home() {
                 仕入れ候補：
                 {candidateCount}件
               </div>
-
             </div>
           </div>
         )}
 
         <div className="mt-8">
-          <h2 className="mb-4 text-xl font-bold">
-            検索結果
-          </h2>
+ <div className="mb-4">
+  <h2 className="text-xl font-bold">
+    検索結果
+  </h2>
 
-          {error && (
-            <div className="rounded-xl bg-red-50 p-5 text-red-600">
-              {error}
-            </div>
-          )}
+  <div className="mt-4 flex items-center justify-center gap-4">
+    <button
+      onClick={() => {
+        if (currentPage > 1) {
+          searchProducts(currentPage - 1);
+        }
+      }}
+      disabled={currentPage === 1}
+      className="rounded-lg bg-gray-200 px-5 py-3 font-bold disabled:opacity-40"
+    >
+      ← 前の30件
+    </button>
 
-          {loading && (
-            <div className="rounded-xl bg-white p-8 text-center">
-              楽天市場を検索しています...
-            </div>
-          )}
+    <div className="rounded-lg bg-white px-5 py-3 font-bold shadow-sm">
+      {currentPage}ページ目
+    </div>
 
-          <div className="space-y-5">
+    <button
+      onClick={() => {
+        searchProducts(currentPage + 1);
+      }}
+      className="rounded-lg bg-black px-5 py-3 font-bold text-white"
+    >
+      次の30件 →
+    </button>
+  </div>
+</div> 
+<div className="space-y-5">        
             {displayedProducts.map(
               ({
                 product,
-                index,
                 calculation,
               }) => {
-
                 const imageUrl =
                   product.mediumImageUrls?.[0]
                     ?.imageUrl || "";
@@ -490,7 +589,6 @@ export default function Home() {
                         : ""
                     }`}
                   >
-
                     {isGoodCandidate && (
                       <div className="mb-5 rounded-lg bg-green-100 p-3 text-center text-lg font-bold text-green-700">
                         ✅ 仕入れ候補
@@ -498,7 +596,6 @@ export default function Home() {
                     )}
 
                     <div className="grid gap-6 lg:grid-cols-[150px_1fr_350px]">
-
                       <div className="flex h-36 w-36 items-center justify-center rounded-xl bg-gray-50">
                         {imageUrl ? (
                           <img
@@ -507,14 +604,13 @@ export default function Home() {
                             className="max-h-32 max-w-32 object-contain"
                           />
                         ) : (
-                          <span>
+                          <span className="text-gray-400">
                             画像なし
                           </span>
                         )}
                       </div>
 
                       <div>
-
                         <h3 className="font-bold">
                           {product.itemName}
                         </h3>
@@ -524,7 +620,6 @@ export default function Home() {
                         </p>
 
                         <div className="mt-4 rounded-xl bg-red-50 p-4">
-
                           <p className="text-sm text-gray-600">
                             楽天販売価格
                           </p>
@@ -535,11 +630,11 @@ export default function Home() {
                           </p>
 
                           <div className="mt-3 space-y-1 text-sm">
-
                             <div className="flex justify-between">
                               <span>
                                 商品ポイント
                               </span>
+
                               <span>
                                 {basePointRate}%
                               </span>
@@ -549,6 +644,7 @@ export default function Home() {
                               <span>
                                 追加ポイント
                               </span>
+
                               <span>
                                 +{extraRate}%
                               </span>
@@ -558,6 +654,7 @@ export default function Home() {
                               <span>
                                 合計ポイント率
                               </span>
+
                               <span>
                                 {totalPointRate}%
                               </span>
@@ -567,13 +664,13 @@ export default function Home() {
                               <span>
                                 獲得ポイント相当
                               </span>
+
                               <span>
                                 +
                                 {pointValue.toLocaleString()}
                                 pt
                               </span>
                             </div>
-
                           </div>
 
                           <div className="mt-3 border-t pt-3">
@@ -586,11 +683,9 @@ export default function Home() {
                               {effectiveRakutenPrice.toLocaleString()}
                             </p>
                           </div>
-
                         </div>
 
                         <div className="mt-5">
-
                           <label className="text-sm font-bold">
                             メルカリ検索ワード
                           </label>
@@ -607,13 +702,11 @@ export default function Home() {
                                 })
                               )
                             }
-                            className="mt-2 w-full rounded-lg border px-4 py-3"
+                            className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-3"
                           />
-
                         </div>
 
                         <div className="mt-4 flex gap-3">
-
                           <a
                             href={product.itemUrl}
                             target="_blank"
@@ -631,19 +724,15 @@ export default function Home() {
                           >
                             メルカリで検索
                           </a>
-
                         </div>
-
                       </div>
 
                       <div className="rounded-xl bg-gray-50 p-5">
-
                         <p className="font-bold">
                           メルカリ相場 3件
                         </p>
 
                         <div className="mt-3 space-y-3">
-
                           {(
                             [
                               "price1",
@@ -654,7 +743,9 @@ export default function Home() {
                             <input
                               key={field}
                               type="number"
-                              value={priceSet[field]}
+                              value={
+                                priceSet[field]
+                              }
                               onChange={(e) =>
                                 updateMercariPrice(
                                   productKey,
@@ -665,19 +756,18 @@ export default function Home() {
                               placeholder={`売れた価格${
                                 i + 1
                               }`}
-                              className="w-full rounded-lg border bg-white px-4 py-3"
+                              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3"
                             />
                           ))}
-
                         </div>
 
                         {averageMercariPrice > 0 && (
                           <div className="mt-5 space-y-2">
-
                             <div className="flex justify-between font-bold">
                               <span>
                                 平均メルカリ相場
                               </span>
+
                               <span>
                                 ¥
                                 {averageMercariPrice.toLocaleString()}
@@ -688,6 +778,7 @@ export default function Home() {
                               <span>
                                 手数料10%
                               </span>
+
                               <span>
                                 -¥
                                 {mercariFee.toLocaleString()}
@@ -698,6 +789,7 @@ export default function Home() {
                               <span>
                                 送料
                               </span>
+
                               <span>
                                 -¥
                                 {shipping.toLocaleString()}
@@ -708,6 +800,7 @@ export default function Home() {
                               <span>
                                 実質仕入れ
                               </span>
+
                               <span>
                                 -¥
                                 {effectiveRakutenPrice.toLocaleString()}
@@ -715,7 +808,6 @@ export default function Home() {
                             </div>
 
                             <div className="border-t pt-3">
-
                               <p className="text-sm font-bold">
                                 想定利益
                               </p>
@@ -761,16 +853,11 @@ export default function Home() {
                                     △ 利益が少ない
                                   </div>
                                 )}
-
                             </div>
-
                           </div>
                         )}
-
                       </div>
-
                     </div>
-
                   </div>
                 );
               }
