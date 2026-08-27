@@ -43,7 +43,8 @@ const [mercariKeywords, setMercariKeywords] = useState<
   const [minProfit, setMinProfit] = useState("1000");
   const [minProfitRate, setMinProfitRate] = useState("20");
   const [shippingCost, setShippingCost] = useState("750");
-
+  const [minRakutenPrice, setMinRakutenPrice] = useState("1000");
+  const [maxRakutenPrice, setMaxRakutenPrice] = useState("10000");
   const [extraPointRate, setExtraPointRate] = useState("0");
 
   const [sortMode, setSortMode] =
@@ -146,40 +147,38 @@ const [mercariKeywords, setMercariKeywords] = useState<
 
       // 1ページずつ順番に取得
       for (let page = 1; page <= bulkPages; page++) {
-        const response = await fetch(
-          `/api/search?keyword=${encodeURIComponent(
-            keyword
-          )}&page=${page}`
-        );
+   if (page > 1) {
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+}
+  const response = await fetch(
+    `/api/search?keyword=${encodeURIComponent(keyword)}&page=${page}`
+  );
 
-        const data = await response.json();
+  const data = await response.json();
 
-        if (!response.ok || !data.success) {
-          throw new Error(
-            data.message ||
-              `${page}ページ目の楽天検索に失敗しました`
-          );
-        }
+  if (!response.ok || !data.success) {
+  console.warn(`${page}ページ目の取得をスキップしました`);
+  continue;
+}
 
-        const items: RakutenProduct[] = (
-          data.items || []
-        ).map(
-          (
-            entry:
-              | { Item?: RakutenProduct }
-              | RakutenProduct
-          ) => {
-            if ("Item" in entry && entry.Item) {
-              return entry.Item;
-            }
-
-            return entry as RakutenProduct;
-          }
-        );
-
-        allItems.push(...items);
+  const items: RakutenProduct[] = (data.items || []).map(
+    (
+      entry:
+        | { Item?: RakutenProduct }
+        | RakutenProduct
+    ) => {
+      if ("Item" in entry && entry.Item) {
+        return entry.Item;
       }
 
+      return entry as RakutenProduct;
+    }
+  );
+
+  allItems.push(...items);
+console.log(`${page}ページ目: ${items.length}件 / 合計 ${allItems.length}件`);
+
+}
       const uniqueItems = Array.from(
   new Map(
     allItems.map((item) => [
@@ -341,8 +340,14 @@ setProducts(uniqueItems);
       isLoss,
     };
   };
+const filteredProducts = products.filter((product) => {
+  const price = Number(product.itemPrice);
+  const minPrice = Number(minRakutenPrice) || 0;
+  const maxPrice = Number(maxRakutenPrice) || Infinity;
 
-  let displayedProducts = products.map(
+  return price >= minPrice && price <= maxPrice;
+});
+let displayedProducts = filteredProducts.map(
     (product, index) => ({
       product,
       index,
@@ -465,7 +470,9 @@ setProducts(uniqueItems);
           ? "bg-black text-white"
           : "bg-white"
       }`}
-    >
+>
+          
+          
       3ページ（90件）
     </button>
 
@@ -477,8 +484,19 @@ setProducts(uniqueItems);
           : "bg-white"
       }`}
     >
+      
       5ページ（150件）
     </button>
+    <button
+  onClick={() => setBulkPages(10)}
+  className={`rounded-lg px-4 py-2 font-bold ${
+    bulkPages === 10
+      ? "bg-black text-white"
+      : "bg-white"
+  }`}
+>
+  10ページ（300件）
+</button>
   </div>
 
   <button
@@ -563,7 +581,30 @@ setProducts(uniqueItems);
             </div>
           </div>
         </div>
+<div className="mt-4">
+  <label className="mb-2 block text-sm font-bold">
+    楽天最低価格（円）
+  </label>
 
+  <input
+    type="number"
+    value={minRakutenPrice}
+    onChange={(e) => setMinRakutenPrice(e.target.value)}
+    className="w-full rounded-lg border border-gray-300 px-4 py-3"
+  />
+</div>
+<div className="mt-4">
+  <label className="mb-2 block text-sm font-bold">
+    楽天最高価格（円）
+  </label>
+
+  <input
+    type="number"
+    value={maxRakutenPrice}
+    onChange={(e) => setMaxRakutenPrice(e.target.value)}
+    className="w-full rounded-lg border border-gray-300 px-4 py-3"
+  />
+</div>
         {products.length > 0 && (
           <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
             <p className="mb-3 font-bold">
@@ -652,7 +693,7 @@ setProducts(uniqueItems);
         <div className="mt-8">
  <div className="mb-4">
   <h2 className="text-xl font-bold">
-    検索結果
+    検索結果　{products.length}件取得 → 条件に合う商品 {filteredProducts.length}件
   </h2>
 
   <div className="mt-4 flex items-center justify-center gap-4">
