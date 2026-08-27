@@ -696,7 +696,7 @@ let displayedProducts = filteredProducts.map(
     検索結果　{products.length}件取得 → 条件に合う商品 {filteredProducts.length}件
   </h2>
 
-  <div className="mt-4 flex items-center justify-center gap-4">
+  <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:gap-4">
     <button
       onClick={() => {
         if (currentPage > 1) {
@@ -1011,9 +1011,14 @@ let displayedProducts = filteredProducts.map(
                                     : "text-red-600"
                                 }`}
                               >
-                                利益率{" "}
-                                {profitRate.toFixed(1)}
-                                %
+                              利益率{" "}
+{profitRate.toFixed(1)}%
+{" "}
+{profitRate >= 20
+  ? "◎"
+  : profitRate >= 10
+  ? "○"
+  : "❌"}
                               </p>
 
                               {isGoodCandidate && (
