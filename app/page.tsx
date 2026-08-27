@@ -32,10 +32,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [mercariKeywords, setMercariKeywords] = useState<
-    Record<string, string>
-  >({});
-
+const [bulkPages, setBulkPages] = useState(3);
+const [mercariKeywords, setMercariKeywords] = useState<
+  Record<string, string>
+>({});
   const [mercariPrices, setMercariPrices] = useState<
     Record<string, MercariPriceSet>
   >({});
@@ -129,7 +129,100 @@ export default function Home() {
       setLoading(false);
     }
   };
+  const bulkSearchProducts = async () => {
+    if (!keyword.trim()) {
+      setError("商品名を入力してください");
+      return;
+    }
 
+    setLoading(true);
+    setError("");
+    setProducts([]);
+    setCandidateOnly(false);
+    setSortMode("none");
+
+    try {
+      const allItems: RakutenProduct[] = [];
+
+      // 1ページずつ順番に取得
+      for (let page = 1; page <= bulkPages; page++) {
+        const response = await fetch(
+          `/api/search?keyword=${encodeURIComponent(
+            keyword
+          )}&page=${page}`
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.message ||
+              `${page}ページ目の楽天検索に失敗しました`
+          );
+        }
+
+        const items: RakutenProduct[] = (
+          data.items || []
+        ).map(
+          (
+            entry:
+              | { Item?: RakutenProduct }
+              | RakutenProduct
+          ) => {
+            if ("Item" in entry && entry.Item) {
+              return entry.Item;
+            }
+
+            return entry as RakutenProduct;
+          }
+        );
+
+        allItems.push(...items);
+      }
+
+      const uniqueItems = Array.from(
+  new Map(
+    allItems.map((item) => [
+      item.itemCode || item.itemUrl,
+      item,
+    ])
+  ).values()
+);
+
+setProducts(uniqueItems);
+      setCurrentPage(1);
+
+      const keywordMap: Record<string, string> = {};
+
+      uniqueItems.forEach((product, index) => {
+        const productKey =
+          product.itemCode || String(index);
+
+        const shortKeyword = product.itemName
+          .replace(/【.*?】/g, "")
+          .replace(/\[.*?\]/g, "")
+          .replace(/（.*?）/g, "")
+          .replace(/\(.*?\)/g, "")
+          .replace(/送料無料/g, "")
+          .replace(/ポイント.*?倍/g, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 60);
+
+        keywordMap[productKey] = shortKeyword;
+      });
+
+      setMercariKeywords(keywordMap);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "まとめ検索中にエラーが発生しました"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
   const updateMercariPrice = (
     productKey: string,
     field: keyof MercariPriceSet,
@@ -340,9 +433,7 @@ export default function Home() {
             />
 
             <button
-              onClick={searchProducts}
-              disabled={loading}
-              className="rounded-lg bg-black px-8 py-3 font-bold text-white disabled:opacity-50"
+           onClick={() => searchProducts(1)}   className="rounded-lg bg-black px-8 py-3 font-bold text-white disabled:opacity-50"
             >
               {loading
                 ? "検索中..."
@@ -350,7 +441,56 @@ export default function Home() {
             </button>
           </div>
         </div>
+<div className="mt-4 rounded-xl bg-gray-50 p-4">
+  <p className="mb-3 font-bold">
+    まとめて検索
+  </p>
 
+  <div className="flex flex-wrap gap-3">
+    <button
+      onClick={() => setBulkPages(1)}
+      className={`rounded-lg px-4 py-2 font-bold ${
+        bulkPages === 1
+          ? "bg-black text-white"
+          : "bg-white"
+      }`}
+    >
+      1ページ（30件）
+    </button>
+
+    <button
+      onClick={() => setBulkPages(3)}
+      className={`rounded-lg px-4 py-2 font-bold ${
+        bulkPages === 3
+          ? "bg-black text-white"
+          : "bg-white"
+      }`}
+    >
+      3ページ（90件）
+    </button>
+
+    <button
+      onClick={() => setBulkPages(5)}
+      className={`rounded-lg px-4 py-2 font-bold ${
+        bulkPages === 5
+          ? "bg-black text-white"
+          : "bg-white"
+      }`}
+    >
+      5ページ（150件）
+    </button>
+  </div>
+
+  <button
+    onClick={bulkSearchProducts}
+    disabled={loading}
+    className="mt-4 w-full rounded-lg bg-green-600 px-6 py-3 font-bold text-white disabled:opacity-50"
+  >
+    {loading
+      ? "まとめて検索中..."
+      : `${bulkPages}ページまとめて検索`}
+  </button>
+</div>
         <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
           <h2 className="mb-5 text-xl font-bold">
             利益判定の設定
