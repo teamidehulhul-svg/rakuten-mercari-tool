@@ -13,7 +13,25 @@ type RakutenProduct = {
     imageUrl: string;
   }[];
 };
-
+type EbayProduct = {
+  itemId: string;
+  title: string;
+  itemWebUrl: string;
+  price?: {
+    value: string;
+    currency: string;
+  };
+  image?: {
+    imageUrl: string;
+  };
+  condition?: string;
+  shippingOptions?: {
+    shippingCost?: {
+      value: string;
+      currency: string;
+    };
+  }[];
+};
 type MercariPriceSet = {
   price1: string;
   price2: string;
@@ -25,13 +43,38 @@ type SortMode =
   | "priceAsc"
   | "priceDesc"
   | "profitDesc";
+const convertToEbayKeyword = (keyword: string) => {
+  const dictionary: Record<string, string> = {
+    "ゲームボーイ": "Nintendo Game Boy",
+    "ゲームボーイアドバンス": "Nintendo Game Boy Advance",
+    "ニンテンドースイッチ": "Nintendo Switch",
+    "任天堂スイッチ": "Nintendo Switch",
+    "ポケモンカード": "Pokemon Card",
+    "ポケカ": "Pokemon Card",
+    "プレイステーション": "PlayStation",
+    "プレステ": "PlayStation",
+    "ファミコン": "Nintendo Famicom",
+    "スーパーファミコン": "Super Famicom",
+  };
 
+  const trimmed = keyword.trim();
+
+  return dictionary[trimmed] || trimmed;
+};
 export default function Home() {
   const [keyword, setKeyword] = useState("");
   const [products, setProducts] = useState<RakutenProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+const [activeTab, setActiveTab] = useState<"rakuten" | "ebay">("rakuten");
+  const [ebayKeyword, setEbayKeyword] = useState("");
+const [ebayProducts, setEbayProducts] = useState<EbayProduct[]>([]);
+const [ebayLoading, setEbayLoading] = useState(false);
+const [usdJpyRate, setUsdJpyRate] = useState("150");
+const [ebayMercariPrices, setEbayMercariPrices] = useState<
+  Record<string, string>
+>({});
+const [currentPage, setCurrentPage] = useState(1);
 const [bulkPages, setBulkPages] = useState(3);
 const [mercariKeywords, setMercariKeywords] = useState<
   Record<string, string>
@@ -52,8 +95,44 @@ const [mercariKeywords, setMercariKeywords] = useState<
 
   const [candidateOnly, setCandidateOnly] =
     useState(false);
+const searchEbayProducts = async () => {
+  if (!ebayKeyword.trim()) {
+    setError("eBayで検索する商品名を入力してください");
+    return;
+  }
 
+  setEbayLoading(true);
+  setError("");
+  setEbayProducts([]);
+
+  try {
+   const convertedKeyword = convertToEbayKeyword(ebayKeyword);
+
+const response = await fetch(
+  `/api/ebay/search?keyword=${encodeURIComponent(convertedKeyword)}`
+);
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || "eBayの商品検索に失敗しました"
+      );
+    }
+
+    setEbayProducts(data.items || []);
+  } catch (error) {
+    setError(
+      error instanceof Error
+        ? error.message
+        : "eBayの商品検索に失敗しました"
+    );
+  } finally {
+    setEbayLoading(false);
+  }
+};
    const searchProducts= async (pageNumber = 1) => {
+  
     if (!keyword.trim()) {
       setError("商品名を入力してください");
       return;
@@ -405,18 +484,271 @@ let displayedProducts = filteredProducts.map(
   return (
     <main className="min-h-screen bg-gray-100 px-6 py-10">
       <div className="mx-auto max-w-6xl">
+        <div className="mb-6 grid grid-cols-2 gap-3">
+  <button
+    onClick={() => setActiveTab("rakuten")}
+    className={`rounded-xl px-4 py-3 font-bold ${
+      activeTab === "rakuten"
+        ? "bg-red-500 text-white"
+        : "bg-white text-gray-600"
+    }`}
+  >
+    🛒 楽天
+  </button>
+
+  <button
+    onClick={() => setActiveTab("ebay")}
+    className={`rounded-xl px-4 py-3 font-bold ${
+      activeTab === "ebay"
+        ? "bg-blue-600 text-white"
+        : "bg-white text-gray-600"
+    }`}
+  >
+    🌎 eBay
+  </button>
+</div>
         <div className="mb-8">
-          <h1 className="text-3xl font-bold">
-            楽天 → メルカリ
-          </h1>
+         <h1 className="text-3xl font-bold">
+  {activeTab === "rakuten"
+    ? "楽天 → メルカリ"
+    : "eBay → メルカリ"}
+</h1>
 
           <p className="mt-2 text-gray-600">
-            楽天仕入れとメルカリ相場を比較して
-            利益商品を探します
-          </p>
+  {activeTab === "rakuten"
+    ? "楽天仕入れとメルカリ相場を比較して利益商品を探します"
+    : "eBay仕入れとメルカリ相場を比較して利益商品を探します"}
+</p>
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-sm">
+<div
+  className={`mb-6 rounded-2xl bg-white p-6 shadow-sm ${
+    activeTab === "ebay" ? "block" : "hidden"
+  }`}
+>
+  <h2 className="mb-2 text-xl font-bold">
+    🇺🇸 eBayの商品を探す
+  </h2>
+
+  <p className="mb-4 text-sm text-gray-500">
+    eBayの商品を検索して仕入れ候補を探します
+  </p>
+
+  <div className="flex flex-col gap-3 md:flex-row">
+    <input
+      type="text"
+      value={ebayKeyword}
+      onChange={(e) => setEbayKeyword(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          searchEbayProducts();
+        }
+      }}
+      placeholder="例：Nintendo Game Boy"
+      className="flex-1 rounded-lg border border-gray-300 px-4 py-3"
+    />
+{ebayKeyword.trim() && (
+  <p className="mt-2 text-sm text-gray-500">
+    eBay検索ワード：
+    <span className="ml-1 font-bold text-blue-600">
+      {convertToEbayKeyword(ebayKeyword)}
+    </span>
+  </p>
+)}
+
+    <button
+      onClick={searchEbayProducts}
+      disabled={ebayLoading}
+      className="rounded-lg bg-blue-600 px-6 py-3 font-bold text-white disabled:opacity-50"
+    >
+      {ebayLoading ? "eBay検索中..." : "eBayで検索"}
+    </button>
+ <div className="mt-4">
+  <label className="mb-2 block text-sm font-bold">
+    為替レート（1ドル＝何円）
+  </label>
+
+  <input
+    type="number"
+    value={usdJpyRate}
+    onChange={(e) => setUsdJpyRate(e.target.value)}
+    className="w-full rounded-lg border border-gray-300 px-4 py-3"
+  />
+</div>
+  </div>
+</div>
+{activeTab === "ebay" && ebayProducts.length > 0 && (
+  <div className="mb-8">
+    <div className="mb-4 flex items-center justify-between">
+      <h2 className="text-xl font-bold">
+        eBay検索結果
+      </h2>
+
+      <p className="text-sm text-gray-500">
+        {ebayProducts.length}件表示
+      </p>
+    </div>
+
+    <div className="grid gap-4 md:grid-cols-2">
+      {ebayProducts.map((product) => {
+        const price = Number(product.price?.value || 0);
+
+        const shipping = Number(
+          product.shippingOptions?.[0]?.shippingCost?.value || 0
+        );
+
+        const rate = Number(usdJpyRate) || 0;
+
+const priceJpy = Math.round(price * rate);
+const shippingJpy = Math.round(shipping * rate);
+const totalJpy = priceJpy + shippingJpy;
+       const mercariSalePrice = Number(
+  ebayMercariPrices[product.itemId] || 0
+);
+
+const mercariFee = Math.round(mercariSalePrice * 0.1);
+
+const domesticShipping = Number(shippingCost) || 0;
+
+const ebayProfit =
+  mercariSalePrice -
+  mercariFee -
+  domesticShipping -
+  totalJpy;
+
+const ebayProfitRate =
+  totalJpy > 0
+    ? (ebayProfit / totalJpy) * 100
+    : 0;
+return (
+          <div
+            key={product.itemId}
+            className="rounded-2xl bg-white p-5 shadow-sm"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row">
+              <div className="flex h-32 w-full shrink-0 items-center justify-center rounded-xl bg-gray-50 sm:w-32">
+                {product.image?.imageUrl ? (
+                  <img
+                    src={product.image.imageUrl}
+                    alt={product.title}
+                    className="max-h-28 max-w-28 object-contain"
+                  />
+                ) : (
+                  <span className="text-sm text-gray-400">
+                    画像なし
+                  </span>
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold">
+                  {product.title}
+                </h3>
+
+                {product.condition && (
+                  <p className="mt-2 text-sm text-gray-500">
+                    状態：{product.condition}
+                  </p>
+                )}
+
+                <p className="mt-3 text-2xl font-bold text-blue-600">
+                  ${price.toLocaleString()}
+                </p>
+
+                <p className="mt-1 text-sm text-gray-600">
+                  送料：${shipping.toLocaleString()}
+                </p>
+<div className="mt-3 rounded-lg bg-green-50 p-3">
+  <p className="text-sm">
+    商品価格：約{priceJpy.toLocaleString()}円
+  </p>
+
+  <p className="text-sm">
+    送料：約{shippingJpy.toLocaleString()}円
+  </p>
+
+  <p className="mt-1 text-lg font-bold text-green-700">
+    🇯🇵 送料込み仕入れ：約{totalJpy.toLocaleString()}円
+  </p>
+</div>
+
+<div className="mt-4">
+  <label className="mb-2 block text-sm font-bold">
+    メルカリ想定売価（円）
+  </label>
+
+  <input
+    type="number"
+    value={ebayMercariPrices[product.itemId] || ""}
+    onChange={(e) =>
+      setEbayMercariPrices((prev) => ({
+        ...prev,
+        [product.itemId]: e.target.value,
+      }))
+    }
+    placeholder="例：30000"
+    className="w-full rounded-lg border border-gray-300 px-4 py-3"
+  />
+  {mercariSalePrice > 0 && (
+  <div className="mt-3 rounded-xl bg-gray-50 p-4">
+    <p className="text-sm">
+      メルカリ手数料：{mercariFee.toLocaleString()}円
+    </p>
+
+    <p className="text-sm">
+      国内送料：{domesticShipping.toLocaleString()}円
+    </p>
+
+    <p className="mt-2 text-xl font-bold">
+      利益：{ebayProfit.toLocaleString()}円
+    </p>
+
+    <p className="text-lg font-bold">
+      利益率：{ebayProfitRate.toFixed(1)}%
+    </p>
+
+    <div
+  className={`mt-3 rounded-xl p-3 text-center text-2xl font-bold ${
+    ebayProfitRate >= 20
+      ? "bg-green-100 text-green-700"
+      : ebayProfitRate >= 10
+      ? "bg-yellow-100 text-yellow-700"
+      : "bg-red-100 text-red-700"
+  }`}
+>
+  {ebayProfitRate >= 20
+    ? "◎ 仕入れ候補"
+    : ebayProfitRate >= 10
+    ? "○ 検討"
+    : "❌ 見送り"}
+</div>
+  </div>
+)}
+
+</div>
+                <a
+                  href={product.itemWebUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-block rounded-lg bg-blue-50 px-4 py-2 font-bold text-blue-600"
+                >
+                  eBayで見る →
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+  )}
+  
+
+        <div
+  className={`rounded-2xl bg-white p-6 shadow-sm ${
+    activeTab === "rakuten" ? "block" : "hidden"
+  }`}
+>
           <h2 className="mb-5 text-xl font-bold">
             楽天の商品を探す
           </h2>
@@ -605,7 +937,7 @@ let displayedProducts = filteredProducts.map(
     className="w-full rounded-lg border border-gray-300 px-4 py-3"
   />
 </div>
-        {products.length > 0 && (
+      {activeTab === "rakuten" && products.length > 0 && (
           <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
             <p className="mb-3 font-bold">
               並び替え・絞り込み
@@ -776,7 +1108,7 @@ let displayedProducts = filteredProducts.map(
                       </div>
                     )}
 
-                    <div className="grid gap-6 lg:grid-cols-[150px_1fr_350px]">
+                    <div className="grid gap-6 S-[150px_1fr_350px]">
                       <div className="flex h-36 w-36 items-center justify-center rounded-xl bg-gray-50">
                         {imageUrl ? (
                           <img
