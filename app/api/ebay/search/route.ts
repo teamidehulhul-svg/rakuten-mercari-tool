@@ -4,6 +4,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const keyword = searchParams.get("keyword");
+    const isGtin = /^\d{8,14}$/.test(keyword ?? "");
     const requestedPages = Math.min(
       10,
       Math.max(1, Math.floor(Number(searchParams.get("pages")) || 1))
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
           "https://api.ebay.com/buy/browse/v1/item_summary/search"
         );
 
-        ebayUrl.searchParams.set("q", keyword);
+        ebayUrl.searchParams.set(isGtin ? "gtin" : "q", keyword);
         ebayUrl.searchParams.set("limit", String(limit));
         ebayUrl.searchParams.set("offset", String(offset));
 

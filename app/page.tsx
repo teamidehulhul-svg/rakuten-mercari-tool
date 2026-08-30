@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import BarcodeScanner from "./components/barcode-scanner";
 
 type RakutenProduct = {
   itemName: string;
@@ -67,7 +68,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 const [activeTab, setActiveTab] =
-  useState<"rakuten" | "ebay" | "calculator">("rakuten");
+  useState<"rakuten" | "ebay" | "calculator" | "scanner">("rakuten");
 const [calcEbayPrice, setCalcEbayPrice] = useState("");
 const [calcEbayShipping, setCalcEbayShipping] = useState("");
 const [calcMercariPrice, setCalcMercariPrice] = useState("");
@@ -128,10 +129,16 @@ const [mercariKeywords, setMercariKeywords] = useState<
 
   const [candidateOnly, setCandidateOnly] =
     useState(false);
-const searchEbayProducts = async () => {
-  if (!ebayKeyword.trim()) {
+const searchEbayProducts = async (barcodeKeyword?: string) => {
+  const searchKeyword = barcodeKeyword?.trim() || ebayKeyword.trim();
+
+  if (!searchKeyword) {
     setError("eBayで検索する商品名を入力してください");
     return;
+  }
+
+  if (barcodeKeyword) {
+    setEbayKeyword(searchKeyword);
   }
 
   setEbayLoading(true);
@@ -139,7 +146,7 @@ const searchEbayProducts = async () => {
   setEbayProducts([]);
 
   try {
-   const convertedKeyword = convertToEbayKeyword(ebayKeyword);
+   const convertedKeyword = convertToEbayKeyword(searchKeyword);
 
 const response = await fetch(
   `/api/ebay/search?keyword=${encodeURIComponent(convertedKeyword)}&pages=${ebayPages}`
@@ -242,10 +249,16 @@ const response = await fetch(
       setLoading(false);
     }
   };
-  const bulkSearchProducts = async () => {
-    if (!keyword.trim()) {
+  const bulkSearchProducts = async (barcodeKeyword?: string) => {
+    const searchKeyword = barcodeKeyword?.trim() || keyword.trim();
+
+    if (!searchKeyword) {
       setError("商品名を入力してください");
       return;
+    }
+
+    if (barcodeKeyword) {
+      setKeyword(searchKeyword);
     }
 
     setLoading(true);
@@ -263,7 +276,7 @@ const response = await fetch(
   await new Promise((resolve) => setTimeout(resolve, 1200));
 }
   const response = await fetch(
-    `/api/search?keyword=${encodeURIComponent(keyword)}&page=${page}`
+    `/api/search?keyword=${encodeURIComponent(searchKeyword)}&page=${page}`
   );
 
   const data = await response.json();
@@ -517,7 +530,7 @@ let displayedProducts = filteredProducts.map(
   return (
     <main className="min-h-screen bg-gradient-to-b from-purple-50 via-gray-50 to-blue-50 px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <div className="sticky top-0 z-20 mb-6 grid grid-cols-3 gap-2 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:gap-3">
+        <div className="sticky top-0 z-20 mb-6 grid grid-cols-4 gap-1 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:gap-3">
   <button
     onClick={() => {
       setActiveTab("rakuten");
@@ -556,8 +569,21 @@ let displayedProducts = filteredProducts.map(
       : "bg-gray-50 text-gray-600"
   }`}
 >
-  💰 利益計算
+  💰 計算
 </button>
+  <button
+    onClick={() => {
+      setActiveTab("scanner");
+      setError("");
+    }}
+    className={`min-h-12 rounded-xl px-1 py-3 text-xs font-bold sm:px-4 sm:text-base ${
+      activeTab === "scanner"
+        ? "bg-emerald-600 text-white"
+        : "bg-gray-50 text-gray-600"
+    }`}
+  >
+    📷 スキャン
+  </button>
 </div>
         <div className="mb-8">
          <h1 className="text-2xl font-bold sm:text-3xl">
@@ -565,7 +591,9 @@ let displayedProducts = filteredProducts.map(
   ? "楽天 → メルカリ"
   : activeTab === "ebay"
   ? "eBay → メルカリ"
-  : "💰 eBay → メルカリ 利益計算"}
+  : activeTab === "calculator"
+  ? "💰 eBay → メルカリ 利益計算"
+  : "📷 バーコード検索"}
 </h1>
 
           <p className="mt-2 text-gray-600">
@@ -573,7 +601,9 @@ let displayedProducts = filteredProducts.map(
   ? "楽天仕入れとメルカリ相場を比較して利益商品を探します"
   : activeTab === "ebay"
   ? "eBay仕入れとメルカリ相場を比較して利益商品を探します"
-  : "eBay仕入れ価格とメルカリ販売価格から利益を計算します"}
+  : activeTab === "calculator"
+  ? "eBay仕入れ価格とメルカリ販売価格から利益を計算します"
+  : "商品のバーコードを読み取って楽天・eBayから検索します"}
 </p>
         </div>
 {error && (
@@ -689,6 +719,22 @@ let displayedProducts = filteredProducts.map(
     )}
   </div>
 )}
+{activeTab === "scanner" && (
+  <BarcodeScanner
+    onSearch={(target, barcode) => {
+      setError("");
+
+      if (target === "rakuten") {
+        setActiveTab("rakuten");
+        void bulkSearchProducts(barcode);
+        return;
+      }
+
+      setActiveTab("ebay");
+      void searchEbayProducts(barcode);
+    }}
+  />
+)}
 
 <div
   className={`mb-6 rounded-2xl bg-white p-6 shadow-sm ${
@@ -711,14 +757,14 @@ let displayedProducts = filteredProducts.map(
       onChange={(e) => setEbayKeyword(e.target.value)}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
-          searchEbayProducts();
+          void searchEbayProducts();
         }
       }}
       placeholder="例：Nintendo Game Boy"
       className="flex-1 rounded-lg border border-gray-300 px-4 py-3"
     />
     <button
-      onClick={searchEbayProducts}
+      onClick={() => void searchEbayProducts()}
       disabled={ebayLoading}
       className="rounded-lg bg-blue-600 px-6 py-3 font-bold text-white disabled:opacity-50"
     >
@@ -957,7 +1003,7 @@ return (
               }
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  bulkSearchProducts();
+                  void bulkSearchProducts();
                 }
               }}
               placeholder="例：ワイヤレスイヤホン"
@@ -965,7 +1011,7 @@ return (
             />
 
             <button
-              onClick={bulkSearchProducts}
+              onClick={() => void bulkSearchProducts()}
               disabled={loading}
               className="rounded-lg bg-red-500 px-6 py-3 font-bold text-white disabled:opacity-50"
             >
