@@ -94,6 +94,11 @@ const calcROI =
     ? (calcProfit / calcPurchaseCost) * 100
     : 0;
 
+const hasCalculatorInput =
+  calcEbayPrice !== "" ||
+  calcEbayShipping !== "" ||
+  calcMercariPrice !== "";
+
   const [ebayKeyword, setEbayKeyword] = useState("");
 const [ebayProducts, setEbayProducts] = useState<EbayProduct[]>([]);
 const [ebayLoading, setEbayLoading] = useState(false);
@@ -509,43 +514,52 @@ let displayedProducts = filteredProducts.map(
   ).length;
 
   return (
-    <main className="min-h-screen bg-gray-100 px-6 py-10">
+    <main className="min-h-screen bg-gradient-to-b from-purple-50 via-gray-50 to-blue-50 px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-6 grid grid-cols-2 gap-3">
+        <div className="sticky top-0 z-20 mb-6 grid grid-cols-3 gap-2 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:gap-3">
   <button
-    onClick={() => setActiveTab("rakuten")}
-    className={`rounded-xl px-4 py-3 font-bold ${
+    onClick={() => {
+      setActiveTab("rakuten");
+      setError("");
+    }}
+    className={`min-h-12 rounded-xl px-2 py-3 text-sm font-bold sm:px-4 sm:text-base ${
       activeTab === "rakuten"
         ? "bg-red-500 text-white"
-        : "bg-white text-gray-600"
+        : "bg-gray-50 text-gray-600"
     }`}
   >
     🛒 楽天
   </button>
 
   <button
-    onClick={() => setActiveTab("ebay")}
-    className={`rounded-xl px-4 py-3 font-bold ${
+    onClick={() => {
+      setActiveTab("ebay");
+      setError("");
+    }}
+    className={`min-h-12 rounded-xl px-2 py-3 text-sm font-bold sm:px-4 sm:text-base ${
       activeTab === "ebay"
         ? "bg-blue-600 text-white"
-        : "bg-white text-gray-600"
+        : "bg-gray-50 text-gray-600"
     }`}
   >
     🌎 eBay
   </button>
   <button
-  onClick={() => setActiveTab("calculator")}
-  className={`rounded-xl px-4 py-3 font-bold ${
+  onClick={() => {
+    setActiveTab("calculator");
+    setError("");
+  }}
+  className={`min-h-12 rounded-xl px-2 py-3 text-sm font-bold sm:px-4 sm:text-base ${
     activeTab === "calculator"
       ? "bg-purple-600 text-white"
-      : "bg-white text-gray-600"
+      : "bg-gray-50 text-gray-600"
   }`}
 >
   💰 利益計算
 </button>
 </div>
         <div className="mb-8">
-         <h1 className="text-3xl font-bold">
+         <h1 className="text-2xl font-bold sm:text-3xl">
  {activeTab === "rakuten"
   ? "楽天 → メルカリ"
   : activeTab === "ebay"
@@ -561,6 +575,11 @@ let displayedProducts = filteredProducts.map(
   : "eBay仕入れ価格とメルカリ販売価格から利益を計算します"}
 </p>
         </div>
+{error && (
+  <div role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 font-bold text-red-700">
+    {error}
+  </div>
+)}
 {activeTab === "calculator" && (
   <div className="mb-8 rounded-2xl bg-white p-6 shadow-sm">
     <h2 className="mb-5 text-xl font-bold">
@@ -621,7 +640,9 @@ let displayedProducts = filteredProducts.map(
       </div>
     </div>
 
-    <div className="mt-6 grid grid-cols-3 gap-3">
+    {hasCalculatorInput ? (
+      <>
+    <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
       <div className="rounded-xl bg-green-50 p-4 text-center">
         <p className="text-sm font-bold text-gray-600">純利益</p>
         <p className="mt-1 text-xl font-bold text-green-700">
@@ -659,6 +680,12 @@ let displayedProducts = filteredProducts.map(
         ? "○ 検討"
         : "❌ 見送り"}
     </div>
+      </>
+    ) : (
+      <div className="mt-6 rounded-xl bg-purple-50 p-5 text-center font-bold text-purple-700">
+        金額を入力すると、利益・利益率・ROIをすぐ計算します
+      </div>
+    )}
   </div>
 )}
 
@@ -919,6 +946,8 @@ return (
             </button>
           </div>
         </div>
+{activeTab === "rakuten" && (
+<>
 <div className="mt-4 rounded-xl bg-gray-50 p-4">
   <p className="mb-3 font-bold">
     まとめて検索
@@ -1055,9 +1084,6 @@ return (
             </div>
           </div>
         </div>
-        {activeTab === "rakuten" && (
-  <>
-
 <div className="mt-4">
   <label className="mb-2 block text-sm font-bold">
     楽天最低価格（円）
@@ -1082,7 +1108,6 @@ return (
     className="w-full rounded-lg border border-gray-300 px-4 py-3"
   />
 </div>
-    
   </>
 )}
       {activeTab === "rakuten" && products.length > 0 && (
@@ -1256,8 +1281,8 @@ return (
                       </div>
                     )}
 
-                    <div className="grid gap-6 S-[150px_1fr_350px]">
-                      <div className="flex h-36 w-36 items-center justify-center rounded-xl bg-gray-50">
+                    <div className="grid gap-6 lg:grid-cols-[150px_minmax(0,1fr)_350px]">
+                      <div className="mx-auto flex h-36 w-full max-w-36 items-center justify-center rounded-xl bg-gray-50 lg:mx-0">
                         {imageUrl ? (
                           <img
                             src={imageUrl}
@@ -1367,7 +1392,7 @@ return (
                           />
                         </div>
 
-                        <div className="mt-4 flex gap-3">
+                        <div className="mt-4 flex flex-wrap gap-3">
                           <a
                             href={product.itemUrl}
                             target="_blank"
