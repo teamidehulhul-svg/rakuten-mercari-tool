@@ -66,7 +66,34 @@ export default function Home() {
   const [products, setProducts] = useState<RakutenProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-const [activeTab, setActiveTab] = useState<"rakuten" | "ebay">("rakuten");
+const [activeTab, setActiveTab] =
+  useState<"rakuten" | "ebay" | "calculator">("rakuten");
+const [calcEbayPrice, setCalcEbayPrice] = useState("");
+const [calcEbayShipping, setCalcEbayShipping] = useState("");
+const [calcMercariPrice, setCalcMercariPrice] = useState("");
+const [calcMercariShipping, setCalcMercariShipping] = useState("750");
+const calcPurchaseCost =
+  Number(calcEbayPrice || 0) + Number(calcEbayShipping || 0);
+
+const calcMercariFee =
+  Math.floor(Number(calcMercariPrice || 0) * 0.1);
+
+const calcProfit =
+  Number(calcMercariPrice || 0) -
+  calcMercariFee -
+  Number(calcMercariShipping || 0) -
+  calcPurchaseCost;
+
+const calcProfitRate =
+  Number(calcMercariPrice || 0) > 0
+    ? (calcProfit / Number(calcMercariPrice)) * 100
+    : 0;
+
+const calcROI =
+  calcPurchaseCost > 0
+    ? (calcProfit / calcPurchaseCost) * 100
+    : 0;
+
   const [ebayKeyword, setEbayKeyword] = useState("");
 const [ebayProducts, setEbayProducts] = useState<EbayProduct[]>([]);
 const [ebayLoading, setEbayLoading] = useState(false);
@@ -506,20 +533,134 @@ let displayedProducts = filteredProducts.map(
   >
     🌎 eBay
   </button>
+  <button
+  onClick={() => setActiveTab("calculator")}
+  className={`rounded-xl px-4 py-3 font-bold ${
+    activeTab === "calculator"
+      ? "bg-purple-600 text-white"
+      : "bg-white text-gray-600"
+  }`}
+>
+  💰 利益計算
+</button>
 </div>
         <div className="mb-8">
          <h1 className="text-3xl font-bold">
-  {activeTab === "rakuten"
-    ? "楽天 → メルカリ"
-    : "eBay → メルカリ"}
+ {activeTab === "rakuten"
+  ? "楽天 → メルカリ"
+  : activeTab === "ebay"
+  ? "eBay → メルカリ"
+  : "💰 eBay → メルカリ 利益計算"}
 </h1>
 
           <p className="mt-2 text-gray-600">
-  {activeTab === "rakuten"
-    ? "楽天仕入れとメルカリ相場を比較して利益商品を探します"
-    : "eBay仕入れとメルカリ相場を比較して利益商品を探します"}
+ {activeTab === "rakuten"
+  ? "楽天仕入れとメルカリ相場を比較して利益商品を探します"
+  : activeTab === "ebay"
+  ? "eBay仕入れとメルカリ相場を比較して利益商品を探します"
+  : "eBay仕入れ価格とメルカリ販売価格から利益を計算します"}
 </p>
         </div>
+{activeTab === "calculator" && (
+  <div className="mb-8 rounded-2xl bg-white p-6 shadow-sm">
+    <h2 className="mb-5 text-xl font-bold">
+      💰 eBay → メルカリ 利益計算
+    </h2>
+
+    <div className="space-y-4">
+      <div>
+        <label className="mb-2 block font-bold">
+          ① eBay 商品価格（円）
+        </label>
+        <input
+          type="number"
+          value={calcEbayPrice}
+          onChange={(e) => setCalcEbayPrice(e.target.value)}
+          className="w-full rounded-xl border border-gray-300 px-4 py-3"
+          placeholder="例：5980"
+        />
+      </div>
+
+      <div>
+        <label className="mb-2 block font-bold">
+          ② eBay 送料（円）
+        </label>
+        <input
+          type="number"
+          value={calcEbayShipping}
+          onChange={(e) => setCalcEbayShipping(e.target.value)}
+          className="w-full rounded-xl border border-gray-300 px-4 py-3"
+          placeholder="例：780"
+        />
+      </div>
+
+      <div>
+        <label className="mb-2 block font-bold">
+          ③ メルカリ販売価格（円）
+        </label>
+        <input
+          type="number"
+          value={calcMercariPrice}
+          onChange={(e) => setCalcMercariPrice(e.target.value)}
+          className="w-full rounded-xl border border-gray-300 px-4 py-3"
+          placeholder="例：8800"
+        />
+      </div>
+
+      <div>
+        <label className="mb-2 block font-bold">
+          ④ メルカリ送料（円）
+        </label>
+        <input
+          type="number"
+          value={calcMercariShipping}
+          onChange={(e) => setCalcMercariShipping(e.target.value)}
+          className="w-full rounded-xl border border-gray-300 px-4 py-3"
+          placeholder="例：210"
+        />
+      </div>
+    </div>
+
+    <div className="mt-6 grid grid-cols-3 gap-3">
+      <div className="rounded-xl bg-green-50 p-4 text-center">
+        <p className="text-sm font-bold text-gray-600">純利益</p>
+        <p className="mt-1 text-xl font-bold text-green-700">
+          {calcProfit.toLocaleString()}円
+        </p>
+      </div>
+
+      <div className="rounded-xl bg-yellow-50 p-4 text-center">
+        <p className="text-sm font-bold text-gray-600">利益率</p>
+        <p className="mt-1 text-xl font-bold text-yellow-700">
+          {calcProfitRate.toFixed(1)}%
+        </p>
+      </div>
+
+      <div className="rounded-xl bg-blue-50 p-4 text-center">
+        <p className="text-sm font-bold text-gray-600">ROI</p>
+        <p className="mt-1 text-xl font-bold text-blue-700">
+          {calcROI.toFixed(1)}%
+        </p>
+      </div>
+    </div>
+
+    <div
+      className={`mt-5 rounded-xl p-4 text-center text-xl font-bold ${
+        calcProfitRate >= 20
+          ? "bg-green-100 text-green-700"
+          : calcProfitRate >= 10
+          ? "bg-yellow-100 text-yellow-700"
+          : "bg-red-100 text-red-700"
+      }`}
+    >
+      {calcProfitRate >= 20
+        ? "◎ 仕入れ候補"
+        : calcProfitRate >= 10
+        ? "○ 検討"
+        : "❌ 見送り"}
+    </div>
+  </div>
+)}
 
 <div
   className={`mb-6 rounded-2xl bg-white p-6 shadow-sm ${
@@ -841,7 +982,8 @@ return (
       : `${bulkPages}ページまとめて検索`}
   </button>
 </div>
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
+      <div className="hidden">
+
           <h2 className="mb-5 text-xl font-bold">
             利益判定の設定
           </h2>
@@ -915,7 +1057,7 @@ return (
         </div>
         {activeTab === "rakuten" && (
   <>
-  
+
 <div className="mt-4">
   <label className="mb-2 block text-sm font-bold">
     楽天最低価格（円）
@@ -1029,7 +1171,7 @@ return (
         )}
 
         <div className="mt-8">
- <div className="mb-4">
+<div className="hidden">
   <h2 className="text-xl font-bold">
     検索結果　{products.length}件取得 → 条件に合う商品 {filteredProducts.length}件
   </h2>
