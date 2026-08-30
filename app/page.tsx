@@ -947,7 +947,8 @@ return (
             楽天の商品を探す
           </h2>
 
-          <div className="flex flex-col gap-4 md:flex-row">
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row">
             <input
               type="text"
               value={keyword}
@@ -956,7 +957,7 @@ return (
               }
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  searchProducts();
+                  bulkSearchProducts();
                 }
               }}
               placeholder="例：ワイヤレスイヤホン"
@@ -964,79 +965,65 @@ return (
             />
 
             <button
-           onClick={() => searchProducts(1)}   className="rounded-lg bg-black px-8 py-3 font-bold text-white disabled:opacity-50"
+              onClick={bulkSearchProducts}
+              disabled={loading}
+              className="rounded-lg bg-red-500 px-6 py-3 font-bold text-white disabled:opacity-50"
             >
               {loading
-                ? "検索中..."
-                : "楽天商品を検索"}
+                ? `${bulkPages * 30}件検索中...`
+                : `楽天で${bulkPages * 30}件検索`}
             </button>
+            </div>
+
+            <div className="rounded-xl bg-red-50 p-4">
+              <p className="mb-3 font-bold text-red-900">検索件数</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[1, 3, 5, 10].map((pages) => (
+                  <button
+                    key={pages}
+                    type="button"
+                    onClick={() => setBulkPages(pages)}
+                    className={`rounded-lg px-3 py-3 font-bold ${
+                      bulkPages === pages
+                        ? "bg-red-500 text-white"
+                        : "bg-white text-red-700"
+                    }`}
+                  >
+                    {pages * 30}件
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-2 block text-sm font-bold">
+                  最低価格（円）
+                </label>
+                <input
+                  type="number"
+                  value={minRakutenPrice}
+                  onChange={(e) => setMinRakutenPrice(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-bold">
+                  最高価格（円）
+                </label>
+                <input
+                  type="number"
+                  value={maxRakutenPrice}
+                  onChange={(e) => setMaxRakutenPrice(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3"
+                />
+              </div>
+            </div>
           </div>
         </div>
 {activeTab === "rakuten" && (
 <>
-<div className="mt-4 rounded-xl bg-gray-50 p-4">
-  <p className="mb-3 font-bold">
-    まとめて検索
-  </p>
-
-  <div className="flex flex-wrap gap-3">
-    <button
-      onClick={() => setBulkPages(1)}
-      className={`rounded-lg px-4 py-2 font-bold ${
-        bulkPages === 1
-          ? "bg-black text-white"
-          : "bg-white"
-      }`}
-    >
-      1ページ（30件）
-    </button>
-
-    <button
-      onClick={() => setBulkPages(3)}
-      className={`rounded-lg px-4 py-2 font-bold ${
-        bulkPages === 3
-          ? "bg-black text-white"
-          : "bg-white"
-      }`}
->
-          
-          
-      3ページ（90件）
-    </button>
-
-    <button
-      onClick={() => setBulkPages(5)}
-      className={`rounded-lg px-4 py-2 font-bold ${
-        bulkPages === 5
-          ? "bg-black text-white"
-          : "bg-white"
-      }`}
-    >
-      
-      5ページ（150件）
-    </button>
-    <button
-  onClick={() => setBulkPages(10)}
-  className={`rounded-lg px-4 py-2 font-bold ${
-    bulkPages === 10
-      ? "bg-black text-white"
-      : "bg-white"
-  }`}
->
-  10ページ（300件）
-</button>
-  </div>
-
-  <button
-    onClick={bulkSearchProducts}
-    disabled={loading}
-    className="mt-4 w-full rounded-lg bg-green-600 px-6 py-3 font-bold text-white disabled:opacity-50"
-  >
-    {loading
-      ? "まとめて検索中..."
-      : `${bulkPages}ページまとめて検索`}
-  </button>
-</div>
       <div className="hidden">
 
           <h2 className="mb-5 text-xl font-bold">
@@ -1110,30 +1097,6 @@ return (
             </div>
           </div>
         </div>
-<div className="mt-4">
-  <label className="mb-2 block text-sm font-bold">
-    楽天最低価格（円）
-  </label>
-
-  <input
-    type="number"
-    value={minRakutenPrice}
-    onChange={(e) => setMinRakutenPrice(e.target.value)}
-    className="w-full rounded-lg border border-gray-300 px-4 py-3"
-  />
-</div>
-<div className="mt-4">
-  <label className="mb-2 block text-sm font-bold">
-    楽天最高価格（円）
-  </label>
-
-  <input
-    type="number"
-    value={maxRakutenPrice}
-    onChange={(e) => setMaxRakutenPrice(e.target.value)}
-    className="w-full rounded-lg border border-gray-300 px-4 py-3"
-  />
-</div>
   </>
 )}
       {activeTab === "rakuten" && products.length > 0 && (
