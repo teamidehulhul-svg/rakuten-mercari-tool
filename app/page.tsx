@@ -913,6 +913,9 @@ return (
             </div>
           </div>
         </div>
+        {activeTab === "rakuten" && (
+  <>
+  
 <div className="mt-4">
   <label className="mb-2 block text-sm font-bold">
     楽天最低価格（円）
@@ -937,6 +940,9 @@ return (
     className="w-full rounded-lg border border-gray-300 px-4 py-3"
   />
 </div>
+    
+  </>
+)}
       {activeTab === "rakuten" && products.length > 0 && (
           <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
             <p className="mb-3 font-bold">
