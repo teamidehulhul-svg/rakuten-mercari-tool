@@ -102,6 +102,7 @@ const hasCalculatorInput =
   const [ebayKeyword, setEbayKeyword] = useState("");
 const [ebayProducts, setEbayProducts] = useState<EbayProduct[]>([]);
 const [ebayLoading, setEbayLoading] = useState(false);
+const [ebayPages, setEbayPages] = useState(1);
 const [usdJpyRate, setUsdJpyRate] = useState("150");
 const [ebayMercariPrices, setEbayMercariPrices] = useState<
   Record<string, string>
@@ -141,7 +142,7 @@ const searchEbayProducts = async () => {
    const convertedKeyword = convertToEbayKeyword(ebayKeyword);
 
 const response = await fetch(
-  `/api/ebay/search?keyword=${encodeURIComponent(convertedKeyword)}`
+  `/api/ebay/search?keyword=${encodeURIComponent(convertedKeyword)}&pages=${ebayPages}`
 );
 
     const data = await response.json();
@@ -702,7 +703,8 @@ let displayedProducts = filteredProducts.map(
     eBayの商品を検索して仕入れ候補を探します
   </p>
 
-  <div className="flex flex-col gap-3 md:flex-row">
+  <div className="space-y-4">
+    <div className="flex flex-col gap-3 md:flex-row">
     <input
       type="text"
       value={ebayKeyword}
@@ -715,8 +717,19 @@ let displayedProducts = filteredProducts.map(
       placeholder="例：Nintendo Game Boy"
       className="flex-1 rounded-lg border border-gray-300 px-4 py-3"
     />
+    <button
+      onClick={searchEbayProducts}
+      disabled={ebayLoading}
+      className="rounded-lg bg-blue-600 px-6 py-3 font-bold text-white disabled:opacity-50"
+    >
+      {ebayLoading
+        ? `${ebayPages * 30}件検索中...`
+        : `eBayで${ebayPages * 30}件検索`}
+    </button>
+    </div>
+
 {ebayKeyword.trim() && (
-  <p className="mt-2 text-sm text-gray-500">
+  <p className="text-sm text-gray-500">
     eBay検索ワード：
     <span className="ml-1 font-bold text-blue-600">
       {convertToEbayKeyword(ebayKeyword)}
@@ -724,14 +737,27 @@ let displayedProducts = filteredProducts.map(
   </p>
 )}
 
-    <button
-      onClick={searchEbayProducts}
-      disabled={ebayLoading}
-      className="rounded-lg bg-blue-600 px-6 py-3 font-bold text-white disabled:opacity-50"
-    >
-      {ebayLoading ? "eBay検索中..." : "eBayで検索"}
-    </button>
- <div className="mt-4">
+    <div className="rounded-xl bg-blue-50 p-4">
+      <p className="mb-3 font-bold text-blue-900">検索件数</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[1, 3, 5, 10].map((pages) => (
+          <button
+            key={pages}
+            type="button"
+            onClick={() => setEbayPages(pages)}
+            className={`rounded-lg px-3 py-3 font-bold ${
+              ebayPages === pages
+                ? "bg-blue-600 text-white"
+                : "bg-white text-blue-700"
+            }`}
+          >
+            {pages * 30}件
+          </button>
+        ))}
+      </div>
+    </div>
+
+ <div>
   <label className="mb-2 block text-sm font-bold">
     為替レート（1ドル＝何円）
   </label>
