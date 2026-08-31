@@ -1,7 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import BarcodeScanner from "./components/barcode-scanner";
+import type { LedgerDraft } from "./components/revenue-ledger";
+
+const RevenueLedger = dynamic(() => import("./components/revenue-ledger"), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-2xl bg-white p-8 text-center font-bold text-violet-700 shadow-sm">
+      収支表を読み込んでいます...
+    </div>
+  ),
+});
 
 type RakutenProduct = {
   itemName: string;
@@ -68,7 +79,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 const [activeTab, setActiveTab] =
-  useState<"rakuten" | "ebay" | "calculator" | "scanner">("rakuten");
+  useState<"rakuten" | "ebay" | "calculator" | "scanner" | "ledger">("rakuten");
+const [ledgerDraft, setLedgerDraft] = useState<LedgerDraft | null>(null);
+const [calcProductName, setCalcProductName] = useState("");
 const [calcEbayPrice, setCalcEbayPrice] = useState("");
 const [calcEbayShipping, setCalcEbayShipping] = useState("");
 const [calcMercariPrice, setCalcMercariPrice] = useState("");
@@ -527,16 +540,25 @@ let displayedProducts = filteredProducts.map(
         .isGoodCandidate
   ).length;
 
+  const openLedgerWithDraft = (draft: Omit<LedgerDraft, "draftId">) => {
+    setLedgerDraft({
+      ...draft,
+      draftId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    });
+    setActiveTab("ledger");
+    setError("");
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-purple-50 via-gray-50 to-blue-50 px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <div className="sticky top-0 z-20 mb-6 grid grid-cols-4 gap-1 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:gap-3">
+        <div className="sticky top-0 z-20 mb-6 grid grid-cols-5 gap-1 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:gap-3">
   <button
     onClick={() => {
       setActiveTab("rakuten");
       setError("");
     }}
-    className={`min-h-12 rounded-xl px-2 py-3 text-sm font-bold sm:px-4 sm:text-base ${
+    className={`min-h-12 rounded-xl px-1 py-3 text-[11px] font-bold sm:px-4 sm:text-base ${
       activeTab === "rakuten"
         ? "bg-red-500 text-white"
         : "bg-gray-50 text-gray-600"
@@ -550,7 +572,7 @@ let displayedProducts = filteredProducts.map(
       setActiveTab("ebay");
       setError("");
     }}
-    className={`min-h-12 rounded-xl px-2 py-3 text-sm font-bold sm:px-4 sm:text-base ${
+    className={`min-h-12 rounded-xl px-1 py-3 text-[11px] font-bold sm:px-4 sm:text-base ${
       activeTab === "ebay"
         ? "bg-blue-600 text-white"
         : "bg-gray-50 text-gray-600"
@@ -563,7 +585,7 @@ let displayedProducts = filteredProducts.map(
     setActiveTab("calculator");
     setError("");
   }}
-  className={`min-h-12 rounded-xl px-2 py-3 text-sm font-bold sm:px-4 sm:text-base ${
+  className={`min-h-12 rounded-xl px-1 py-3 text-[11px] font-bold sm:px-4 sm:text-base ${
     activeTab === "calculator"
       ? "bg-purple-600 text-white"
       : "bg-gray-50 text-gray-600"
@@ -576,13 +598,27 @@ let displayedProducts = filteredProducts.map(
       setActiveTab("scanner");
       setError("");
     }}
-    className={`min-h-12 rounded-xl px-1 py-3 text-xs font-bold sm:px-4 sm:text-base ${
+    className={`min-h-12 rounded-xl px-1 py-3 text-[10px] font-bold sm:px-4 sm:text-base ${
       activeTab === "scanner"
         ? "bg-emerald-600 text-white"
         : "bg-gray-50 text-gray-600"
     }`}
   >
     📷 スキャン
+  </button>
+  <button
+    type="button"
+    onClick={() => {
+      setActiveTab("ledger");
+      setError("");
+    }}
+    className={`min-h-12 rounded-xl px-1 py-3 text-[11px] font-bold sm:px-4 sm:text-base ${
+      activeTab === "ledger"
+        ? "bg-fuchsia-600 text-white"
+        : "bg-gray-50 text-gray-600"
+    }`}
+  >
+    📊 収支
   </button>
 </div>
         <div className="mb-8">
@@ -593,7 +629,9 @@ let displayedProducts = filteredProducts.map(
   ? "eBay → メルカリ"
   : activeTab === "calculator"
   ? "💰 eBay → メルカリ 利益計算"
-  : "📷 バーコード検索"}
+  : activeTab === "scanner"
+  ? "📷 バーコード検索"
+  : "📊 せどり収支表"}
 </h1>
 
           <p className="mt-2 text-gray-600">
@@ -603,7 +641,9 @@ let displayedProducts = filteredProducts.map(
   ? "eBay仕入れとメルカリ相場を比較して利益商品を探します"
   : activeTab === "calculator"
   ? "eBay仕入れ価格とメルカリ販売価格から利益を計算します"
-  : "商品のバーコードを読み取って楽天・eBayから検索します"}
+  : activeTab === "scanner"
+  ? "商品のバーコードを読み取って楽天・eBayから検索します"
+  : "売上・仕入れ・経費をまとめて純利益を確認します"}
 </p>
         </div>
 {error && (
@@ -618,6 +658,18 @@ let displayedProducts = filteredProducts.map(
     </h2>
 
     <div className="space-y-4">
+      <div>
+        <label className="mb-2 block font-bold">
+          商品名（任意）
+        </label>
+        <input
+          type="text"
+          value={calcProductName}
+          onChange={(e) => setCalcProductName(e.target.value)}
+          className="w-full rounded-xl border border-gray-300 px-4 py-3"
+          placeholder="例：Nintendo Switch 有機EL"
+        />
+      </div>
       <div>
         <label className="mb-2 block font-bold">
           ① eBay 商品価格（円）
@@ -711,6 +763,22 @@ let displayedProducts = filteredProducts.map(
         ? "○ 検討"
         : "❌ 見送り"}
     </div>
+    <button
+      type="button"
+      onClick={() =>
+        openLedgerWithDraft({
+          productName: calcProductName.trim() || "eBay仕入れ商品",
+          source: "ebay",
+          purchasePrice: calcPurchaseCost,
+          expectedSalePrice: Number(calcMercariPrice || 0),
+          sellingFee: calcMercariFee,
+          shippingCost: Number(calcMercariShipping || 0),
+        })
+      }
+      className="mt-4 w-full rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-5 py-4 font-bold text-white"
+    >
+      📦 この計算結果を仕入れ登録へ
+    </button>
       </>
     ) : (
       <div className="mt-6 rounded-xl bg-purple-50 p-5 text-center font-bold text-purple-700">
@@ -733,6 +801,12 @@ let displayedProducts = filteredProducts.map(
       setActiveTab("ebay");
       void searchEbayProducts(barcode);
     }}
+  />
+)}
+{activeTab === "ledger" && (
+  <RevenueLedger
+    draft={ledgerDraft}
+    onDraftConsumed={() => setLedgerDraft(null)}
   />
 )}
 
@@ -974,6 +1048,24 @@ return (
                 >
                   eBayで見る →
                 </a>
+                {mercariSalePrice > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openLedgerWithDraft({
+                        productName: product.title,
+                        source: "ebay",
+                        purchasePrice: totalJpy,
+                        expectedSalePrice: mercariSalePrice,
+                        sellingFee: mercariFee,
+                        shippingCost: domesticShipping,
+                      })
+                    }
+                    className="mt-3 w-full rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-3 font-bold text-white"
+                  >
+                    📦 この商品を仕入れ登録へ
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1579,6 +1671,22 @@ return (
                                     △ 利益が少ない
                                   </div>
                                 )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openLedgerWithDraft({
+                                    productName: product.itemName,
+                                    source: "rakuten",
+                                    purchasePrice: effectiveRakutenPrice,
+                                    expectedSalePrice: averageMercariPrice,
+                                    sellingFee: mercariFee,
+                                    shippingCost: shipping,
+                                  })
+                                }
+                                className="mt-4 w-full rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-3 font-bold text-white"
+                              >
+                                📦 この商品を仕入れ登録へ
+                              </button>
                             </div>
                           </div>
                         )}
