@@ -1322,6 +1322,7 @@ return (
           </div>
         )}
 
+        {activeTab === "rakuten" && (
         <div className="mt-8">
 <div className="hidden">
   <h2 className="text-xl font-bold">
@@ -1698,6 +1699,7 @@ return (
             )}
           </div>
         </div>
+        )}
       </div>
     </main>
   );
