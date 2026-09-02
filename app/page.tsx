@@ -3,6 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import BarcodeScanner from "./components/barcode-scanner";
+import AmazonSearch from "./components/amazon-search";
 import type { LedgerDraft } from "./components/revenue-ledger";
 
 const RevenueLedger = dynamic(() => import("./components/revenue-ledger"), {
@@ -79,7 +80,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 const [activeTab, setActiveTab] =
-  useState<"rakuten" | "ebay" | "calculator" | "scanner" | "ledger">("rakuten");
+  useState<
+    "rakuten" | "ebay" | "amazon" | "calculator" | "scanner" | "ledger"
+  >("rakuten");
+const [amazonSearchKeyword, setAmazonSearchKeyword] = useState("");
 const [ledgerDraft, setLedgerDraft] = useState<LedgerDraft | null>(null);
 const [calcProductName, setCalcProductName] = useState("");
 const [calcEbayPrice, setCalcEbayPrice] = useState("");
@@ -552,7 +556,7 @@ let displayedProducts = filteredProducts.map(
   return (
     <main className="min-h-screen bg-gradient-to-b from-purple-50 via-gray-50 to-blue-50 px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <div className="sticky top-0 z-20 mb-6 grid grid-cols-5 gap-1 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:gap-3">
+        <div className="sticky top-0 z-20 mb-6 grid grid-cols-3 gap-1 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:grid-cols-6 sm:gap-3">
   <button
     onClick={() => {
       setActiveTab("rakuten");
@@ -579,6 +583,19 @@ let displayedProducts = filteredProducts.map(
     }`}
   >
     🌎 eBay
+  </button>
+  <button
+    onClick={() => {
+      setActiveTab("amazon");
+      setError("");
+    }}
+    className={`min-h-12 rounded-xl px-1 py-3 text-[11px] font-bold sm:px-4 sm:text-base ${
+      activeTab === "amazon"
+        ? "bg-orange-500 text-white"
+        : "bg-gray-50 text-gray-600"
+    }`}
+  >
+    📦 Amazon
   </button>
   <button
   onClick={() => {
@@ -627,6 +644,8 @@ let displayedProducts = filteredProducts.map(
   ? "楽天 → メルカリ"
   : activeTab === "ebay"
   ? "eBay → メルカリ"
+  : activeTab === "amazon"
+  ? "Amazon → メルカリ"
   : activeTab === "calculator"
   ? "💰 eBay → メルカリ 利益計算"
   : activeTab === "scanner"
@@ -639,10 +658,12 @@ let displayedProducts = filteredProducts.map(
   ? "楽天仕入れとメルカリ相場を比較して利益商品を探します"
   : activeTab === "ebay"
   ? "eBay仕入れとメルカリ相場を比較して利益商品を探します"
+  : activeTab === "amazon"
+  ? "Amazonの商品を検索してメルカリ販売の利益を確認します"
   : activeTab === "calculator"
   ? "eBay仕入れ価格とメルカリ販売価格から利益を計算します"
   : activeTab === "scanner"
-  ? "商品のバーコードを読み取って楽天・eBayから検索します"
+  ? "商品のバーコードを読み取って楽天・eBay・Amazonから検索します"
   : "売上・仕入れ・経費をまとめて純利益を確認します"}
 </p>
         </div>
@@ -798,6 +819,12 @@ let displayedProducts = filteredProducts.map(
         return;
       }
 
+      if (target === "amazon") {
+        setAmazonSearchKeyword(barcode);
+        setActiveTab("amazon");
+        return;
+      }
+
       setActiveTab("ebay");
       void searchEbayProducts(barcode);
     }}
@@ -809,6 +836,13 @@ let displayedProducts = filteredProducts.map(
     onDraftConsumed={() => setLedgerDraft(null)}
   />
 )}
+<div className={activeTab === "amazon" ? "block" : "hidden"}>
+  <AmazonSearch
+    initialKeyword={amazonSearchKeyword}
+    onInitialKeywordConsumed={() => setAmazonSearchKeyword("")}
+    onRegister={(draft) => openLedgerWithDraft(draft)}
+  />
+</div>
 
 <div
   className={`mb-6 rounded-2xl bg-white p-6 shadow-sm ${

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { IScannerControls } from "@zxing/browser";
 
-type SearchTarget = "rakuten" | "ebay";
+type SearchTarget = "rakuten" | "ebay" | "amazon";
 
 type BarcodeScannerProps = {
   onSearch: (target: SearchTarget, barcode: string) => void;
@@ -188,7 +188,7 @@ export default function BarcodeScanner({ onSearch }: BarcodeScannerProps) {
         </p>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <button
           type="button"
           onClick={() => searchWithBarcode("rakuten")}
@@ -202,6 +202,13 @@ export default function BarcodeScanner({ onSearch }: BarcodeScannerProps) {
           className="rounded-xl bg-blue-600 px-5 py-4 font-bold text-white"
         >
           🌎 eBayで検索
+        </button>
+        <button
+          type="button"
+          onClick={() => searchWithBarcode("amazon")}
+          className="rounded-xl bg-orange-500 px-5 py-4 font-bold text-white"
+        >
+          📦 Amazonで検索
         </button>
       </div>
     </section>

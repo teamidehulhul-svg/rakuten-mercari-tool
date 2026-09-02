@@ -16,6 +16,30 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Environment variables
+
+Create a `.env.local` file in the project root and configure:
+
+- `RAKUTEN_APPLICATION_ID`
+- `RAKUTEN_ACCESS_KEY`
+- `EBAY_CLIENT_ID`
+- `EBAY_CLIENT_SECRET`
+
+Amazon search defaults to a free external-search mode. It opens Amazon Japan
+using a product name, JAN, or ASIN and does not require a Professional selling
+plan or API credentials.
+
+The following variables are optional and reserved for a future in-app Amazon
+catalog-search mode:
+
+- `AMAZON_SP_API_CLIENT_ID`
+- `AMAZON_SP_API_CLIENT_SECRET`
+- `AMAZON_SP_API_REFRESH_TOKEN`
+
+That optional mode uses a self-authorized private Selling Partner API
+application. Keep every credential server-side and never prefix these variables
+with `NEXT_PUBLIC_`.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

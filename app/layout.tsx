@@ -15,7 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "せどりリサーチ＆利益計算",
-  description: "楽天・eBay仕入れとメルカリ販売のリサーチ＆利益計算ツール",
+  description:
+    "楽天・eBay・Amazon仕入れとメルカリ販売のリサーチ＆利益計算ツール",
   applicationName: "せどりツール",
   appleWebApp: {
     capable: true,
