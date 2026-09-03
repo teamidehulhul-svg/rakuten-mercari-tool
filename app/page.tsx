@@ -8,6 +8,7 @@ import AppNavigation, {
   type MainNavigationTab,
 } from "./components/app-navigation";
 import type { LedgerDraft } from "./components/revenue-ledger";
+import type { ListingDraft } from "./components/listing-support";
 
 const HomeDashboard = dynamic(() => import("./components/home-dashboard"), {
   ssr: false,
@@ -23,6 +24,15 @@ const RevenueLedger = dynamic(() => import("./components/revenue-ledger"), {
   loading: () => (
     <div className="rounded-2xl bg-white p-8 text-center font-bold text-violet-700 shadow-sm">
       収支表を読み込んでいます...
+    </div>
+  ),
+});
+
+const ListingSupport = dynamic(() => import("./components/listing-support"), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-2xl bg-white p-8 text-center font-bold text-fuchsia-700 shadow-sm">
+      出品サポートを読み込んでいます...
     </div>
   ),
 });
@@ -86,6 +96,7 @@ type ActiveTab =
   | "home"
   | ResearchTab
   | "calculator"
+  | "listing"
   | "ledger"
   | "inventory";
 
@@ -134,6 +145,7 @@ const [lastResearchTab, setLastResearchTab] =
   useState<ResearchTab>("rakuten");
 const [amazonSearchKeyword, setAmazonSearchKeyword] = useState("");
 const [ledgerDraft, setLedgerDraft] = useState<LedgerDraft | null>(null);
+const [listingDraft, setListingDraft] = useState<ListingDraft | null>(null);
 const [calcProductName, setCalcProductName] = useState("");
 const [calcEbayPrice, setCalcEbayPrice] = useState("");
 const [calcEbayShipping, setCalcEbayShipping] = useState("");
@@ -602,6 +614,19 @@ let displayedProducts = filteredProducts.map(
     setError("");
   };
 
+  const openListingSupport = (draft?: Omit<ListingDraft, "draftId">) => {
+    setListingDraft(
+      draft
+        ? {
+            ...draft,
+            draftId: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          }
+        : null
+    );
+    setActiveTab("listing");
+    setError("");
+  };
+
   const openResearchTab = (tab: ResearchTab) => {
     setLastResearchTab(tab);
     setActiveTab(tab);
@@ -636,6 +661,7 @@ let displayedProducts = filteredProducts.map(
             }}
             onInventory={() => navigateMain("inventory")}
             onLedger={() => navigateMain("ledger")}
+            onListing={() => openListingSupport()}
           />
         )}
 
@@ -669,6 +695,8 @@ let displayedProducts = filteredProducts.map(
   ? "Amazon → メルカリ"
   : activeTab === "calculator"
   ? "💰 eBay → メルカリ 利益計算"
+  : activeTab === "listing"
+  ? "✍️ 出品サポート"
   : activeTab === "scanner"
   ? "📷 バーコード検索"
   : activeTab === "inventory"
@@ -685,6 +713,8 @@ let displayedProducts = filteredProducts.map(
   ? "Amazonの商品を検索してメルカリ販売の利益を確認します"
   : activeTab === "calculator"
   ? "eBay仕入れ価格とメルカリ販売価格から利益を計算します"
+  : activeTab === "listing"
+  ? "メルカリ・eBay向けの出品タイトルと説明文を作ります"
   : activeTab === "scanner"
   ? "商品のバーコードを読み取って楽天・eBay・Amazonから検索します"
   : activeTab === "inventory"
@@ -862,6 +892,7 @@ let displayedProducts = filteredProducts.map(
     onDraftConsumed={() => setLedgerDraft(null)}
   />
 )}
+{activeTab === "listing" && <ListingSupport draft={listingDraft} />}
 {activeTab === "inventory" && (
   <InventoryManager
     onAddPurchase={() =>
@@ -878,6 +909,7 @@ let displayedProducts = filteredProducts.map(
       setActiveTab("ledger");
       setError("");
     }}
+    onCreateListing={(draft) => openListingSupport(draft)}
   />
 )}
 <div className={activeTab === "amazon" ? "block" : "hidden"}>

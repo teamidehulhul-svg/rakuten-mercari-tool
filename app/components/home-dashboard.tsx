@@ -13,6 +13,7 @@ type HomeDashboardProps = {
   onCalculator: () => void;
   onInventory: () => void;
   onLedger: () => void;
+  onListing: () => void;
 };
 
 const STORAGE_KEY = "sedori-management-ledger-v1";
@@ -72,6 +73,7 @@ export default function HomeDashboard({
   onCalculator,
   onInventory,
   onLedger,
+  onListing,
 }: HomeDashboardProps) {
   const [summary] = useState(readSummary);
 
@@ -150,6 +152,26 @@ export default function HomeDashboard({
           </button>
         ))}
       </section>
+
+      <button
+        type="button"
+        onClick={onListing}
+        className="flex w-full items-center gap-4 rounded-3xl bg-white p-4 text-left shadow-sm ring-1 ring-gray-100 transition active:scale-[0.99] sm:p-5"
+      >
+        <span
+          aria-hidden="true"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-500 via-pink-500 to-orange-400 text-2xl text-white shadow-sm"
+        >
+          ✍️
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-lg font-black text-gray-900">出品サポート</span>
+          <span className="mt-1 block text-xs font-bold text-gray-500 sm:text-sm">
+            タイトルと説明文をすぐ作成
+          </span>
+        </span>
+        <span className="font-black text-fuchsia-400" aria-hidden="true">→</span>
+      </button>
 
       <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
         <div className="flex items-center justify-between gap-3">

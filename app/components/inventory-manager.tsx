@@ -7,6 +7,7 @@ import {
   platformLabels,
   type TradePlatform,
 } from "../lib/trade-route";
+import type { ListingDraft } from "./listing-support";
 
 type InventoryStatus = "purchased" | "listed";
 type LedgerStatus = "stock" | "sold";
@@ -50,6 +51,7 @@ type SaleForm = {
 type InventoryManagerProps = {
   onAddPurchase: () => void;
   onOpenLedger: () => void;
+  onCreateListing: (draft: Omit<ListingDraft, "draftId">) => void;
 };
 
 const STORAGE_KEY = "sedori-management-ledger-v1";
@@ -136,6 +138,7 @@ const readEntries = () => {
 export default function InventoryManager({
   onAddPurchase,
   onOpenLedger,
+  onCreateListing,
 }: InventoryManagerProps) {
   const [initialData] = useState(readEntries);
   const [entries, setEntries] = useState(initialData.entries);
@@ -462,6 +465,20 @@ export default function InventoryManager({
                       className="rounded-xl bg-violet-600 px-3 py-3 text-sm font-bold text-white"
                     >
                       販売登録へ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onCreateListing({
+                          productName: entry.productName,
+                          salesChannel: getSalesChannel(entry),
+                          category: entry.category,
+                          expectedPrice: entry.salePrice,
+                        })
+                      }
+                      className="col-span-2 rounded-xl bg-gradient-to-r from-fuchsia-500 to-orange-400 px-3 py-3 text-sm font-black text-white"
+                    >
+                      ✍️ この商品の出品文を作る
                     </button>
                   </div>
                 )}
