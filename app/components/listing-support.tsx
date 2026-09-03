@@ -35,12 +35,17 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
   const [productName, setProductName] = useState(draft?.productName || "");
   const [englishName, setEnglishName] = useState("");
   const [brandModel, setBrandModel] = useState("");
+  const [englishBrandModel, setEnglishBrandModel] = useState("");
   const [condition, setCondition] = useState<ConditionKey>("good");
   const [includedItems, setIncludedItems] = useState("写真に写っているものがすべてです");
+  const [englishIncludedItems, setEnglishIncludedItems] = useState("");
   const [price, setPrice] = useState(
     draft?.expectedPrice ? String(draft.expectedPrice) : ""
   );
   const [notes, setNotes] = useState("");
+  const [englishNotes, setEnglishNotes] = useState("");
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translatedSource, setTranslatedSource] = useState("");
   const [feedback, setFeedback] = useState(
     draft ? "在庫の商品情報を引き継ぎました" : ""
   );
@@ -53,7 +58,11 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
 
     if (platform === "ebay") {
       const ebayName = englishName.trim() || cleanProductName;
-      const title = [cleanBrandModel, ebayName, conditionLabels[condition].ebay]
+      const ebayBrandModel = englishBrandModel.trim() || cleanBrandModel;
+      const ebayIncludedItems =
+        englishIncludedItems.trim() || cleanIncludedItems;
+      const ebayNotes = englishNotes.trim() || cleanNotes;
+      const title = [ebayBrandModel, ebayName, conditionLabels[condition].ebay]
         .filter(Boolean)
         .join(" ")
         .replace(/\s+/g, " ")
@@ -64,10 +73,10 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
         "Thank you for visiting this listing.",
         "",
         `Item: ${ebayName}`,
-        cleanBrandModel ? `Brand / Model: ${cleanBrandModel}` : "",
+        ebayBrandModel ? `Brand / Model: ${ebayBrandModel}` : "",
         `Condition: ${conditionLabels[condition].ebay}`,
-        `Included: ${cleanIncludedItems}`,
-        cleanNotes ? `Notes: ${cleanNotes}` : "",
+        `Included: ${ebayIncludedItems}`,
+        ebayNotes ? `Notes: ${ebayNotes}` : "",
         "",
         "Please check the photos carefully for the actual condition.",
         "The item will be packed carefully for shipping from Japan.",
@@ -103,7 +112,73 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
       .trim();
 
     return { title, description, maxTitleLength: 40 };
-  }, [brandModel, condition, englishName, includedItems, notes, platform, productName]);
+  }, [
+    brandModel,
+    condition,
+    englishBrandModel,
+    englishIncludedItems,
+    englishName,
+    englishNotes,
+    includedItems,
+    notes,
+    platform,
+    productName,
+  ]);
+
+  const translationSource = JSON.stringify([
+    productName.trim(),
+    brandModel.trim(),
+    includedItems.trim(),
+    notes.trim(),
+  ]);
+  const translationNeedsUpdate =
+    translatedSource !== "" && translatedSource !== translationSource;
+
+  const translateForEbay = async () => {
+    if (!productName.trim()) {
+      setFeedback("先に商品名を入力してください");
+      return;
+    }
+
+    setIsTranslating(true);
+    setFeedback("英訳しています...");
+
+    try {
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          texts: [productName, brandModel, includedItems, notes],
+        }),
+      });
+      const data = (await response.json()) as {
+        success?: boolean;
+        translations?: string[];
+        message?: string;
+      };
+
+      if (!response.ok || !data.success || !data.translations) {
+        throw new Error(data.message || "英訳できませんでした");
+      }
+
+      const [translatedName, translatedBrand, translatedIncluded, translatedNotes] =
+        data.translations;
+      setEnglishName(translatedName || productName);
+      setEnglishBrandModel(translatedBrand || brandModel);
+      setEnglishIncludedItems(translatedIncluded || includedItems);
+      setEnglishNotes(translatedNotes || notes);
+      setTranslatedSource(translationSource);
+      setFeedback("英訳できました！内容を確認してコピーしてください");
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "英訳できませんでした。少し待ってからもう一度お試しください"
+      );
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   const copyText = async (text: string, label: string) => {
     try {
@@ -177,22 +252,6 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
               className="w-full rounded-xl border border-gray-300 px-4 py-3"
             />
           </div>
-
-          {platform === "ebay" && (
-            <div>
-              <label htmlFor="listing-english-name" className="mb-2 block font-bold">
-                eBay用の英語商品名
-              </label>
-              <input
-                id="listing-english-name"
-                value={englishName}
-                onChange={(event) => setEnglishName(event.target.value)}
-                placeholder="例：Nintendo Switch OLED Model"
-                className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3"
-              />
-              <p className="mt-1 text-xs text-gray-500">空欄の場合は上の商品名を使います</p>
-            </div>
-          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -268,6 +327,88 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
               />
             </div>
           </div>
+
+          {platform === "ebay" && (
+            <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50 p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="font-black text-blue-950">🌎 eBay用の英語</h3>
+                  <p className="mt-1 text-xs font-bold text-blue-700">
+                    日本語の商品情報をまとめて英訳します
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void translateForEbay()}
+                  disabled={isTranslating}
+                  className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-sm disabled:cursor-wait disabled:opacity-60"
+                >
+                  {isTranslating ? "⏳ 英訳中..." : "✨ まとめて自動英訳"}
+                </button>
+              </div>
+
+              {translationNeedsUpdate && (
+                <p className="mt-3 rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-800">
+                  日本語を変更しました。もう一度「自動英訳」を押してください
+                </p>
+              )}
+
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label htmlFor="listing-english-name" className="mb-1 block text-sm font-bold text-blue-950">
+                    English product name
+                  </label>
+                  <input
+                    id="listing-english-name"
+                    value={englishName}
+                    onChange={(event) => setEnglishName(event.target.value)}
+                    placeholder="Nintendo Switch OLED Model"
+                    className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="listing-english-brand" className="mb-1 block text-sm font-bold text-blue-950">
+                    Brand / Model
+                  </label>
+                  <input
+                    id="listing-english-brand"
+                    value={englishBrandModel}
+                    onChange={(event) => setEnglishBrandModel(event.target.value)}
+                    placeholder="Nintendo HEG-001"
+                    className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="listing-english-included" className="mb-1 block text-sm font-bold text-blue-950">
+                    Included items
+                  </label>
+                  <input
+                    id="listing-english-included"
+                    value={englishIncludedItems}
+                    onChange={(event) => setEnglishIncludedItems(event.target.value)}
+                    placeholder="Console, box, and charger"
+                    className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="listing-english-notes" className="mb-1 block text-sm font-bold text-blue-950">
+                    Notes
+                  </label>
+                  <input
+                    id="listing-english-notes"
+                    value={englishNotes}
+                    onChange={(event) => setEnglishNotes(event.target.value)}
+                    placeholder="Tested and working"
+                    className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3"
+                  />
+                </div>
+              </div>
+
+              <p className="mt-3 text-xs leading-5 text-blue-700">
+                自動英訳後も、英語の欄を自由に修正できます
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
