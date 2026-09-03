@@ -15,6 +15,18 @@ const RevenueLedger = dynamic(() => import("./components/revenue-ledger"), {
   ),
 });
 
+const InventoryManager = dynamic(
+  () => import("./components/inventory-manager"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-2xl bg-white p-8 text-center font-bold text-violet-700 shadow-sm">
+        在庫管理を読み込んでいます...
+      </div>
+    ),
+  }
+);
+
 type RakutenProduct = {
   itemName: string;
   itemPrice: number;
@@ -81,7 +93,13 @@ export default function Home() {
   const [error, setError] = useState("");
 const [activeTab, setActiveTab] =
   useState<
-    "rakuten" | "ebay" | "amazon" | "calculator" | "scanner" | "ledger"
+    | "rakuten"
+    | "ebay"
+    | "amazon"
+    | "calculator"
+    | "scanner"
+    | "ledger"
+    | "inventory"
   >("rakuten");
 const [amazonSearchKeyword, setAmazonSearchKeyword] = useState("");
 const [ledgerDraft, setLedgerDraft] = useState<LedgerDraft | null>(null);
@@ -556,7 +574,7 @@ let displayedProducts = filteredProducts.map(
   return (
     <main className="min-h-screen bg-gradient-to-b from-purple-50 via-gray-50 to-blue-50 px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
-        <div className="sticky top-0 z-20 mb-6 grid grid-cols-3 gap-1 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:grid-cols-6 sm:gap-3">
+        <div className="sticky top-0 z-20 mb-6 grid grid-cols-4 gap-1 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:grid-cols-7 sm:gap-2">
   <button
     onClick={() => {
       setActiveTab("rakuten");
@@ -637,6 +655,20 @@ let displayedProducts = filteredProducts.map(
   >
     📊 収支
   </button>
+  <button
+    type="button"
+    onClick={() => {
+      setActiveTab("inventory");
+      setError("");
+    }}
+    className={`min-h-12 rounded-xl px-1 py-3 text-[10px] font-bold sm:px-3 sm:text-base ${
+      activeTab === "inventory"
+        ? "bg-violet-600 text-white"
+        : "bg-gray-50 text-gray-600"
+    }`}
+  >
+    📦 在庫
+  </button>
 </div>
         <div className="mb-8">
          <h1 className="text-2xl font-bold sm:text-3xl">
@@ -650,6 +682,8 @@ let displayedProducts = filteredProducts.map(
   ? "💰 eBay → メルカリ 利益計算"
   : activeTab === "scanner"
   ? "📷 バーコード検索"
+  : activeTab === "inventory"
+  ? "📦 在庫管理"
   : "📊 せどり収支表"}
 </h1>
 
@@ -664,6 +698,8 @@ let displayedProducts = filteredProducts.map(
   ? "eBay仕入れ価格とメルカリ販売価格から利益を計算します"
   : activeTab === "scanner"
   ? "商品のバーコードを読み取って楽天・eBay・Amazonから検索します"
+  : activeTab === "inventory"
+  ? "仕入れ済み・出品中・売却済みの商品をまとめて管理します"
   : "売上・仕入れ・経費をまとめて純利益を確認します"}
 </p>
         </div>
@@ -834,6 +870,24 @@ let displayedProducts = filteredProducts.map(
   <RevenueLedger
     draft={ledgerDraft}
     onDraftConsumed={() => setLedgerDraft(null)}
+  />
+)}
+{activeTab === "inventory" && (
+  <InventoryManager
+    onAddPurchase={() =>
+      openLedgerWithDraft({
+        productName: "",
+        source: "other",
+        purchasePrice: 0,
+        expectedSalePrice: 0,
+        sellingFee: 0,
+        shippingCost: 750,
+      })
+    }
+    onOpenLedger={() => {
+      setActiveTab("ledger");
+      setError("");
+    }}
   />
 )}
 <div className={activeTab === "amazon" ? "block" : "hidden"}>
@@ -1093,6 +1147,8 @@ return (
                         expectedSalePrice: mercariSalePrice,
                         sellingFee: mercariFee,
                         shippingCost: domesticShipping,
+                        imageUrl: product.image?.imageUrl,
+                        itemUrl: product.itemWebUrl,
                       })
                     }
                     className="mt-3 w-full rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-3 font-bold text-white"
@@ -1716,6 +1772,8 @@ return (
                                     expectedSalePrice: averageMercariPrice,
                                     sellingFee: mercariFee,
                                     shippingCost: shipping,
+                                    imageUrl,
+                                    itemUrl: product.itemUrl,
                                   })
                                 }
                                 className="mt-4 w-full rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-3 font-bold text-white"

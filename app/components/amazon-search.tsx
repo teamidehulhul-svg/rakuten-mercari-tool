@@ -267,6 +267,7 @@ export default function AmazonSearch({
                   expectedSalePrice: sale,
                   sellingFee: mercariFee,
                   shippingCost: shipping,
+                  itemUrl: amazonUrl,
                 })
               }
               className="mt-4 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-green-500 px-5 py-4 font-bold text-white"

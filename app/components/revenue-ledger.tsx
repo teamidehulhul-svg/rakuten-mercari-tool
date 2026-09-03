@@ -14,11 +14,14 @@ export type LedgerDraft = {
   sellingFee?: number;
   shippingCost?: number;
   otherExpenses?: number;
+  imageUrl?: string;
+  itemUrl?: string;
 };
 
-type LedgerStatus = "stock" | "sold";
+export type LedgerStatus = "stock" | "sold";
+export type InventoryStatus = "purchased" | "listed";
 
-type LedgerEntry = {
+export type LedgerEntry = {
   id: string;
   productName: string;
   source: LedgerSource;
@@ -31,6 +34,9 @@ type LedgerEntry = {
   sellingFee: number;
   shippingCost: number;
   otherExpenses: number;
+  inventoryStatus?: InventoryStatus;
+  imageUrl?: string;
+  itemUrl?: string;
   createdAt: string;
 };
 
@@ -317,6 +323,7 @@ export default function RevenueLedger({
       return;
     }
 
+    const existingEntry = entries.find((item) => item.id === editingId);
     const entry: LedgerEntry = {
       id:
         editingId ||
@@ -333,9 +340,13 @@ export default function RevenueLedger({
       sellingFee: Number(form.sellingFee || 0),
       shippingCost: Number(form.shippingCost || 0),
       otherExpenses: Number(form.otherExpenses || 0),
-      createdAt:
-        entries.find((item) => item.id === editingId)?.createdAt ||
-        new Date().toISOString(),
+      inventoryStatus:
+        form.status === "stock"
+          ? existingEntry?.inventoryStatus || "purchased"
+          : undefined,
+      imageUrl: existingEntry?.imageUrl || draft?.imageUrl,
+      itemUrl: existingEntry?.itemUrl || draft?.itemUrl,
+      createdAt: existingEntry?.createdAt || new Date().toISOString(),
     };
 
     setEntries((current) =>
