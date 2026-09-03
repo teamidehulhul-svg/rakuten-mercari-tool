@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const MYMEMORY_ENDPOINT = "https://api.mymemory.translated.net/get";
-const MAX_FIELDS = 4;
+const MAX_FIELDS = 5;
 const MAX_FIELD_LENGTH = 400;
 const MAX_SEGMENT_BYTES = 450;
 
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
 
     if (body.texts.length > MAX_FIELDS) {
       return NextResponse.json(
-        { success: false, message: "一度に英訳できる項目は4つまでです" },
+        { success: false, message: "一度に英訳できる項目は5つまでです" },
         { status: 400 }
       );
     }

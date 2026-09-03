@@ -44,6 +44,9 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
   );
   const [notes, setNotes] = useState("");
   const [englishNotes, setEnglishNotes] = useState("");
+  const [additionalDescription, setAdditionalDescription] = useState("");
+  const [englishAdditionalDescription, setEnglishAdditionalDescription] =
+    useState("");
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatedSource, setTranslatedSource] = useState("");
   const [feedback, setFeedback] = useState(
@@ -55,6 +58,7 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
     const cleanBrandModel = brandModel.trim();
     const cleanIncludedItems = includedItems.trim() || "写真に写っているものがすべてです";
     const cleanNotes = notes.trim();
+    const cleanAdditionalDescription = additionalDescription.trim();
 
     if (platform === "ebay") {
       const ebayName = englishName.trim() || cleanProductName;
@@ -62,6 +66,8 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
       const ebayIncludedItems =
         englishIncludedItems.trim() || cleanIncludedItems;
       const ebayNotes = englishNotes.trim() || cleanNotes;
+      const ebayAdditionalDescription =
+        englishAdditionalDescription.trim() || cleanAdditionalDescription;
       const title = [ebayBrandModel, ebayName, conditionLabels[condition].ebay]
         .filter(Boolean)
         .join(" ")
@@ -77,6 +83,7 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
         `Condition: ${conditionLabels[condition].ebay}`,
         `Included: ${ebayIncludedItems}`,
         ebayNotes ? `Notes: ${ebayNotes}` : "",
+        ...(ebayAdditionalDescription ? ["", ebayAdditionalDescription] : []),
         "",
         "Please check the photos carefully for the actual condition.",
         "The item will be packed carefully for shipping from Japan.",
@@ -102,6 +109,9 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
       `【状態】${conditionLabels[condition].mercari}`,
       `【付属品】${cleanIncludedItems}`,
       cleanNotes ? `【補足】${cleanNotes}` : "",
+      ...(cleanAdditionalDescription
+        ? ["", `【追加説明】\n${cleanAdditionalDescription}`]
+        : []),
       "",
       "商品の状態は写真でもご確認ください。",
       "丁寧に梱包して発送します。",
@@ -113,9 +123,11 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
 
     return { title, description, maxTitleLength: 40 };
   }, [
+    additionalDescription,
     brandModel,
     condition,
     englishBrandModel,
+    englishAdditionalDescription,
     englishIncludedItems,
     englishName,
     englishNotes,
@@ -130,6 +142,7 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
     brandModel.trim(),
     includedItems.trim(),
     notes.trim(),
+    additionalDescription.trim(),
   ]);
   const translationNeedsUpdate =
     translatedSource !== "" && translatedSource !== translationSource;
@@ -148,7 +161,13 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          texts: [productName, brandModel, includedItems, notes],
+          texts: [
+            productName,
+            brandModel,
+            includedItems,
+            notes,
+            additionalDescription,
+          ],
         }),
       });
       const data = (await response.json()) as {
@@ -161,12 +180,20 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
         throw new Error(data.message || "英訳できませんでした");
       }
 
-      const [translatedName, translatedBrand, translatedIncluded, translatedNotes] =
-        data.translations;
+      const [
+        translatedName,
+        translatedBrand,
+        translatedIncluded,
+        translatedNotes,
+        translatedAdditionalDescription,
+      ] = data.translations;
       setEnglishName(translatedName || productName);
       setEnglishBrandModel(translatedBrand || brandModel);
       setEnglishIncludedItems(translatedIncluded || includedItems);
       setEnglishNotes(translatedNotes || notes);
+      setEnglishAdditionalDescription(
+        translatedAdditionalDescription || additionalDescription
+      );
       setTranslatedSource(translationSource);
       setFeedback("英訳できました！内容を確認してコピーしてください");
     } catch (error) {
@@ -328,6 +355,27 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
             </div>
           </div>
 
+          <div>
+            <label
+              htmlFor="listing-additional-description"
+              className="mb-2 block font-bold"
+            >
+              追加説明（自由入力）
+            </label>
+            <textarea
+              id="listing-additional-description"
+              value={additionalDescription}
+              onChange={(event) => setAdditionalDescription(event.target.value)}
+              rows={4}
+              maxLength={400}
+              placeholder="例：自宅で大切に保管していました。ペット・喫煙者はいません。"
+              className="w-full resize-y rounded-xl border border-gray-300 px-4 py-3"
+            />
+            <p className="mt-1 text-right text-xs text-gray-500">
+              {additionalDescription.length}/400文字
+            </p>
+          </div>
+
           {platform === "ebay" && (
             <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50 p-4 sm:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -400,6 +448,25 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
                     onChange={(event) => setEnglishNotes(event.target.value)}
                     placeholder="Tested and working"
                     className="w-full rounded-xl border border-blue-200 bg-white px-4 py-3"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="listing-english-additional-description"
+                    className="mb-1 block text-sm font-bold text-blue-950"
+                  >
+                    Additional description
+                  </label>
+                  <textarea
+                    id="listing-english-additional-description"
+                    value={englishAdditionalDescription}
+                    onChange={(event) =>
+                      setEnglishAdditionalDescription(event.target.value)
+                    }
+                    rows={4}
+                    maxLength={400}
+                    placeholder="Carefully stored in a smoke-free and pet-free home."
+                    className="w-full resize-y rounded-xl border border-blue-200 bg-white px-4 py-3"
                   />
                 </div>
               </div>
