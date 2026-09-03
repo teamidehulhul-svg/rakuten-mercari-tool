@@ -9,7 +9,33 @@ type BarcodeScannerProps = {
   onSearch: (target: SearchTarget, barcode: string) => void;
 };
 
+type NumericCameraCapability = {
+  min: number;
+  max: number;
+  step: number;
+};
+
+type CameraCapabilities = MediaTrackCapabilities & {
+  focusMode?: string[];
+  torch?: boolean;
+  zoom?: NumericCameraCapability;
+};
+
+type CameraConstraintSet = MediaTrackConstraintSet & {
+  focusMode?: ConstrainDOMString;
+  torch?: ConstrainBoolean;
+  zoom?: ConstrainDouble;
+};
+
 const PRODUCT_BARCODE_PATTERN = /^\d{8,14}$/;
+
+const applyCameraConstraints = (
+  track: MediaStreamTrack,
+  constraints: CameraConstraintSet
+) =>
+  track.applyConstraints({
+    advanced: [constraints],
+  });
 
 export default function BarcodeScanner({ onSearch }: BarcodeScannerProps) {
   const [barcode, setBarcode] = useState("");
@@ -17,16 +43,33 @@ export default function BarcodeScanner({ onSearch }: BarcodeScannerProps) {
   const [message, setMessage] = useState(
     "JAN・EAN・UPCのバーコードを読み取れます"
   );
+  const [continuousFocusEnabled, setContinuousFocusEnabled] = useState(false);
+  const [zoomCapability, setZoomCapability] =
+    useState<NumericCameraCapability | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchEnabled, setTorchEnabled] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
+  const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
   const scanSessionRef = useRef(0);
+
+  const resetCameraFeatures = useCallback(() => {
+    cameraTrackRef.current = null;
+    setContinuousFocusEnabled(false);
+    setZoomCapability(null);
+    setZoom(1);
+    setTorchSupported(false);
+    setTorchEnabled(false);
+  }, []);
 
   const stopScanning = useCallback(() => {
     scanSessionRef.current += 1;
     controlsRef.current?.stop();
     controlsRef.current = null;
+    resetCameraFeatures();
     setIsScanning(false);
-  }, []);
+  }, [resetCameraFeatures]);
 
   useEffect(() => stopScanning, [stopScanning]);
 
@@ -57,6 +100,8 @@ export default function BarcodeScanner({ onSearch }: BarcodeScannerProps) {
           audio: false,
           video: {
             facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
         },
         videoRef.current ?? undefined,
@@ -75,6 +120,7 @@ export default function BarcodeScanner({ onSearch }: BarcodeScannerProps) {
           callbackControls.stop();
           scanSessionRef.current += 1;
           controlsRef.current = null;
+          resetCameraFeatures();
           setIsScanning(false);
           setBarcode(detectedBarcode);
           setMessage(`読み取り成功：${detectedBarcode}`);
@@ -87,6 +133,72 @@ export default function BarcodeScanner({ onSearch }: BarcodeScannerProps) {
       }
 
       controlsRef.current = controls;
+
+      const stream = videoRef.current?.srcObject;
+      const cameraTrack =
+        stream instanceof MediaStream ? stream.getVideoTracks()[0] : undefined;
+
+      if (cameraTrack) {
+        cameraTrackRef.current = cameraTrack;
+
+        try {
+          const capabilities =
+            cameraTrack.getCapabilities() as CameraCapabilities;
+
+          if (capabilities.focusMode?.includes("continuous")) {
+            try {
+              await applyCameraConstraints(cameraTrack, {
+                focusMode: "continuous",
+              });
+
+              if (scanSessionRef.current === scanSession) {
+                setContinuousFocusEnabled(true);
+              }
+            } catch {
+              // The scanner still works with the camera's default autofocus.
+            }
+          }
+
+          if (scanSessionRef.current !== scanSession) {
+            return;
+          }
+
+          const zoomRange = capabilities.zoom;
+
+          if (
+            zoomRange &&
+            Number.isFinite(zoomRange.min) &&
+            Number.isFinite(zoomRange.max) &&
+            zoomRange.max > zoomRange.min
+          ) {
+            const cameraZoom = cameraTrack.getSettings().zoom;
+            const initialZoom =
+              typeof cameraZoom === "number" &&
+              cameraZoom >= zoomRange.min &&
+              cameraZoom <= zoomRange.max
+                ? cameraZoom
+                : zoomRange.min;
+
+            setZoomCapability({
+              ...zoomRange,
+              step:
+                Number.isFinite(zoomRange.step) && zoomRange.step > 0
+                  ? zoomRange.step
+                  : 0.1,
+            });
+            setZoom(initialZoom);
+          }
+
+          setTorchSupported(capabilities.torch === true);
+        } catch {
+          // Some browsers do not expose camera capabilities. Scanning can continue.
+        }
+      }
+
+      if (scanSessionRef.current !== scanSession) {
+        return;
+      }
+
       setMessage("バーコードを枠の中央に合わせてください");
     } catch (error) {
       if (scanSessionRef.current !== scanSession) {
@@ -99,6 +211,41 @@ export default function BarcodeScanner({ onSearch }: BarcodeScannerProps) {
           ? error.message
           : "カメラを起動できませんでした"
       );
+    }
+  };
+
+  const changeZoom = async (nextZoom: number) => {
+    const cameraTrack = cameraTrackRef.current;
+
+    if (!cameraTrack || !zoomCapability) {
+      return;
+    }
+
+    setZoom(nextZoom);
+
+    try {
+      await applyCameraConstraints(cameraTrack, { zoom: nextZoom });
+    } catch {
+      setMessage("この端末ではズームを変更できませんでした");
+    }
+  };
+
+  const toggleTorch = async () => {
+    const cameraTrack = cameraTrackRef.current;
+
+    if (!cameraTrack || !torchSupported) {
+      return;
+    }
+
+    const nextTorchEnabled = !torchEnabled;
+
+    try {
+      await applyCameraConstraints(cameraTrack, {
+        torch: nextTorchEnabled,
+      });
+      setTorchEnabled(nextTorchEnabled);
+    } catch {
+      setMessage("この端末ではライトを操作できませんでした");
     }
   };
 
@@ -140,6 +287,57 @@ export default function BarcodeScanner({ onSearch }: BarcodeScannerProps) {
           )}
         </div>
       </div>
+
+      {isScanning &&
+        (continuousFocusEnabled || zoomCapability || torchSupported) && (
+          <div className="mt-4 rounded-2xl bg-cyan-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-bold text-cyan-950">カメラ補助</p>
+              {continuousFocusEnabled && (
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+                  🎯 自動ピント ON
+                </span>
+              )}
+            </div>
+
+            {zoomCapability && (
+              <label className="mt-4 block" htmlFor="camera-zoom">
+                <span className="mb-2 flex items-center justify-between text-sm font-bold text-gray-700">
+                  <span>🔍 ズーム</span>
+                  <span>{zoom.toFixed(1)}倍</span>
+                </span>
+                <input
+                  id="camera-zoom"
+                  type="range"
+                  min={zoomCapability.min}
+                  max={zoomCapability.max}
+                  step={zoomCapability.step}
+                  value={zoom}
+                  onChange={(event) =>
+                    void changeZoom(event.target.valueAsNumber)
+                  }
+                  className="h-3 w-full accent-cyan-600"
+                  aria-label="カメラのズーム倍率"
+                />
+              </label>
+            )}
+
+            {torchSupported && (
+              <button
+                type="button"
+                onClick={() => void toggleTorch()}
+                className={`mt-4 w-full rounded-xl px-4 py-3 font-bold transition-colors ${
+                  torchEnabled
+                    ? "bg-amber-400 text-amber-950"
+                    : "bg-white text-gray-700 shadow-sm"
+                }`}
+                aria-pressed={torchEnabled}
+              >
+                🔦 ライト {torchEnabled ? "ON" : "OFF"}
+              </button>
+            )}
+          </div>
+        )}
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button
