@@ -4,7 +4,19 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import BarcodeScanner from "./components/barcode-scanner";
 import AmazonSearch from "./components/amazon-search";
+import AppNavigation, {
+  type MainNavigationTab,
+} from "./components/app-navigation";
 import type { LedgerDraft } from "./components/revenue-ledger";
+
+const HomeDashboard = dynamic(() => import("./components/home-dashboard"), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-3xl bg-white p-8 text-center font-bold text-violet-700 shadow-sm">
+      ホームを読み込んでいます...
+    </div>
+  ),
+});
 
 const RevenueLedger = dynamic(() => import("./components/revenue-ledger"), {
   ssr: false,
@@ -68,6 +80,32 @@ type SortMode =
   | "priceAsc"
   | "priceDesc"
   | "profitDesc";
+
+type ResearchTab = "rakuten" | "ebay" | "amazon" | "scanner";
+type ActiveTab =
+  | "home"
+  | ResearchTab
+  | "calculator"
+  | "ledger"
+  | "inventory";
+
+const researchTabs: {
+  tab: ResearchTab;
+  label: string;
+  activeClass: string;
+}[] = [
+  { tab: "rakuten", label: "🛒 楽天", activeClass: "bg-red-500 text-white" },
+  { tab: "ebay", label: "🌎 eBay", activeClass: "bg-blue-600 text-white" },
+  { tab: "amazon", label: "📦 Amazon", activeClass: "bg-orange-500 text-white" },
+  { tab: "scanner", label: "📷 スキャン", activeClass: "bg-emerald-600 text-white" },
+];
+
+const isResearchTab = (tab: ActiveTab): tab is ResearchTab =>
+  tab === "rakuten" ||
+  tab === "ebay" ||
+  tab === "amazon" ||
+  tab === "scanner";
+
 const convertToEbayKeyword = (keyword: string) => {
   const dictionary: Record<string, string> = {
     "ゲームボーイ": "Nintendo Game Boy",
@@ -91,16 +129,9 @@ export default function Home() {
   const [products, setProducts] = useState<RakutenProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-const [activeTab, setActiveTab] =
-  useState<
-    | "rakuten"
-    | "ebay"
-    | "amazon"
-    | "calculator"
-    | "scanner"
-    | "ledger"
-    | "inventory"
-  >("rakuten");
+const [activeTab, setActiveTab] = useState<ActiveTab>("home");
+const [lastResearchTab, setLastResearchTab] =
+  useState<ResearchTab>("rakuten");
 const [amazonSearchKeyword, setAmazonSearchKeyword] = useState("");
 const [ledgerDraft, setLedgerDraft] = useState<LedgerDraft | null>(null);
 const [calcProductName, setCalcProductName] = useState("");
@@ -571,105 +602,63 @@ let displayedProducts = filteredProducts.map(
     setError("");
   };
 
-  return (
-    <main className="min-h-screen bg-gradient-to-b from-purple-50 via-gray-50 to-blue-50 px-4 py-6 sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-6xl">
-        <div className="sticky top-0 z-20 mb-6 grid grid-cols-4 gap-1 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:grid-cols-7 sm:gap-2">
-  <button
-    onClick={() => {
-      setActiveTab("rakuten");
-      setError("");
-    }}
-    className={`min-h-12 rounded-xl px-1 py-3 text-[11px] font-bold sm:px-4 sm:text-base ${
-      activeTab === "rakuten"
-        ? "bg-red-500 text-white"
-        : "bg-gray-50 text-gray-600"
-    }`}
-  >
-    🛒 楽天
-  </button>
-
-  <button
-    onClick={() => {
-      setActiveTab("ebay");
-      setError("");
-    }}
-    className={`min-h-12 rounded-xl px-1 py-3 text-[11px] font-bold sm:px-4 sm:text-base ${
-      activeTab === "ebay"
-        ? "bg-blue-600 text-white"
-        : "bg-gray-50 text-gray-600"
-    }`}
-  >
-    🌎 eBay
-  </button>
-  <button
-    onClick={() => {
-      setActiveTab("amazon");
-      setError("");
-    }}
-    className={`min-h-12 rounded-xl px-1 py-3 text-[11px] font-bold sm:px-4 sm:text-base ${
-      activeTab === "amazon"
-        ? "bg-orange-500 text-white"
-        : "bg-gray-50 text-gray-600"
-    }`}
-  >
-    📦 Amazon
-  </button>
-  <button
-  onClick={() => {
-    setActiveTab("calculator");
+  const openResearchTab = (tab: ResearchTab) => {
+    setLastResearchTab(tab);
+    setActiveTab(tab);
     setError("");
-  }}
-  className={`min-h-12 rounded-xl px-1 py-3 text-[11px] font-bold sm:px-4 sm:text-base ${
-    activeTab === "calculator"
-      ? "bg-purple-600 text-white"
-      : "bg-gray-50 text-gray-600"
-  }`}
->
-  💰 計算
-</button>
-  <button
-    onClick={() => {
-      setActiveTab("scanner");
-      setError("");
-    }}
-    className={`min-h-12 rounded-xl px-1 py-3 text-[10px] font-bold sm:px-4 sm:text-base ${
-      activeTab === "scanner"
-        ? "bg-emerald-600 text-white"
-        : "bg-gray-50 text-gray-600"
-    }`}
-  >
-    📷 スキャン
-  </button>
-  <button
-    type="button"
-    onClick={() => {
-      setActiveTab("ledger");
-      setError("");
-    }}
-    className={`min-h-12 rounded-xl px-1 py-3 text-[11px] font-bold sm:px-4 sm:text-base ${
-      activeTab === "ledger"
-        ? "bg-fuchsia-600 text-white"
-        : "bg-gray-50 text-gray-600"
-    }`}
-  >
-    📊 収支
-  </button>
-  <button
-    type="button"
-    onClick={() => {
-      setActiveTab("inventory");
-      setError("");
-    }}
-    className={`min-h-12 rounded-xl px-1 py-3 text-[10px] font-bold sm:px-3 sm:text-base ${
-      activeTab === "inventory"
-        ? "bg-violet-600 text-white"
-        : "bg-gray-50 text-gray-600"
-    }`}
-  >
-    📦 在庫
-  </button>
-</div>
+  };
+
+  const navigateMain = (tab: MainNavigationTab) => {
+    if (tab === "research") {
+      openResearchTab(lastResearchTab);
+      return;
+    }
+
+    setActiveTab(tab);
+    setError("");
+  };
+
+  const mainNavigationTab: MainNavigationTab = isResearchTab(activeTab)
+    ? "research"
+    : activeTab === "inventory" || activeTab === "ledger" || activeTab === "home"
+      ? activeTab
+      : "home";
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-purple-50 via-gray-50 to-blue-50 px-4 pb-28 pt-6 sm:px-6 sm:pb-32 sm:pt-10">
+      <div className="mx-auto max-w-6xl">
+        {activeTab === "home" && (
+          <HomeDashboard
+            onResearch={() => openResearchTab(lastResearchTab)}
+            onCalculator={() => {
+              setActiveTab("calculator");
+              setError("");
+            }}
+            onInventory={() => navigateMain("inventory")}
+            onLedger={() => navigateMain("ledger")}
+          />
+        )}
+
+        {isResearchTab(activeTab) && (
+          <div className="sticky top-3 z-20 mb-6 grid grid-cols-4 gap-1 rounded-2xl bg-white/90 p-2 shadow-sm backdrop-blur sm:gap-2">
+            {researchTabs.map((item) => (
+              <button
+                key={item.tab}
+                type="button"
+                onClick={() => openResearchTab(item.tab)}
+                className={`min-h-12 rounded-xl px-1 py-3 text-[10px] font-black sm:px-4 sm:text-base ${
+                  activeTab === item.tab
+                    ? item.activeClass
+                    : "bg-gray-50 text-gray-600"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {activeTab !== "home" && (
         <div className="mb-8">
          <h1 className="text-2xl font-bold sm:text-3xl">
  {activeTab === "rakuten"
@@ -703,6 +692,7 @@ let displayedProducts = filteredProducts.map(
   : "売上・仕入れ・経費をまとめて純利益を確認します"}
 </p>
         </div>
+        )}
 {error && (
   <div role="alert" className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 font-bold text-red-700">
     {error}
@@ -850,18 +840,18 @@ let displayedProducts = filteredProducts.map(
       setError("");
 
       if (target === "rakuten") {
-        setActiveTab("rakuten");
+        openResearchTab("rakuten");
         void bulkSearchProducts(barcode);
         return;
       }
 
       if (target === "amazon") {
         setAmazonSearchKeyword(barcode);
-        setActiveTab("amazon");
+        openResearchTab("amazon");
         return;
       }
 
-      setActiveTab("ebay");
+      openResearchTab("ebay");
       void searchEbayProducts(barcode);
     }}
   />
@@ -1793,6 +1783,10 @@ return (
         </div>
         )}
       </div>
+      <AppNavigation
+        activeTab={mainNavigationTab}
+        onNavigate={navigateMain}
+      />
     </main>
   );
 }

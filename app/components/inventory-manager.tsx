@@ -612,7 +612,7 @@ export default function InventoryManager({
         </section>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-30 p-4 sm:static sm:p-0">
+      <div className="fixed inset-x-0 bottom-20 z-30 p-4 sm:static sm:p-0">
         <button
           type="button"
           onClick={onAddPurchase}
