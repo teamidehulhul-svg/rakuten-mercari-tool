@@ -1,13 +1,20 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  getSalesChannel,
+  platformLabels,
+  type TradePlatform,
+} from "../lib/trade-route";
 
-export type LedgerSource = "rakuten" | "ebay" | "amazon" | "other";
+export type LedgerSource = TradePlatform;
+export type SalesChannel = TradePlatform;
 
 export type LedgerDraft = {
   draftId: string;
   productName: string;
   source: LedgerSource;
+  salesChannel?: SalesChannel;
   category?: string;
   purchasePrice: number;
   expectedSalePrice?: number;
@@ -25,6 +32,7 @@ export type LedgerEntry = {
   id: string;
   productName: string;
   source: LedgerSource;
+  salesChannel?: SalesChannel;
   category: string;
   status: LedgerStatus;
   purchaseDate: string;
@@ -69,12 +77,66 @@ type RevenueLedgerProps = {
 
 const STORAGE_KEY = "sedori-management-ledger-v1";
 
-const sourceLabels: Record<LedgerSource, string> = {
-  rakuten: "楽天",
-  ebay: "eBay",
-  amazon: "Amazon",
-  other: "その他",
+type RouteSelectorProps = {
+  source: LedgerSource;
+  salesChannel: SalesChannel;
+  onSourceChange: (source: LedgerSource) => void;
+  onSalesChannelChange: (salesChannel: SalesChannel) => void;
+  onSwap: () => void;
 };
+
+function RouteSelector({
+  source,
+  salesChannel,
+  onSourceChange,
+  onSalesChannelChange,
+  onSwap,
+}: RouteSelectorProps) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_minmax(0,1fr)] items-end gap-2">
+      <label className="min-w-0 text-xs font-bold text-gray-600 sm:text-sm">
+        仕入れ先
+        <select
+          value={source}
+          onChange={(event) => onSourceChange(event.target.value as LedgerSource)}
+          className="mt-2 w-full rounded-xl border border-violet-200 bg-white px-2 py-3 font-bold text-gray-900 sm:px-4"
+        >
+          {Object.entries(platformLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <button
+        type="button"
+        onClick={onSwap}
+        aria-label="仕入れ先と販売先を入れ替える"
+        className="mb-0 flex h-12 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-2xl text-white shadow-sm transition active:rotate-180"
+      >
+        🔄
+      </button>
+
+      <label className="min-w-0 text-xs font-bold text-gray-600 sm:text-sm">
+        販売先
+        <select
+          value={salesChannel}
+          onChange={(event) =>
+            onSalesChannelChange(event.target.value as SalesChannel)
+          }
+          className="mt-2 w-full rounded-xl border border-fuchsia-200 bg-white px-2 py-3 font-bold text-gray-900 sm:px-4"
+        >
+          {Object.entries(platformLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
 
 const categoryOptions = [
   "ゲーム",
@@ -102,6 +164,7 @@ const createEmptyForm = (): LedgerForm => {
   return {
     productName: "",
     source: "rakuten",
+    salesChannel: "mercari",
     category: "その他",
     status: "sold",
     purchaseDate: today,
@@ -174,6 +237,7 @@ const createDraftForm = (draft: LedgerDraft): LedgerForm => {
   return {
     productName: draft.productName,
     source: draft.source,
+    salesChannel: draft.salesChannel || "mercari",
     category: draft.category || "その他",
     status: "stock",
     purchaseDate: today,
@@ -198,6 +262,10 @@ export default function RevenueLedger({
   const [selectedMonth, setSelectedMonth] = useState(() =>
     getJapanDate().slice(0, 7)
   );
+  const [routeFilterEnabled, setRouteFilterEnabled] = useState(false);
+  const [routeSource, setRouteSource] = useState<LedgerSource>("ebay");
+  const [routeSalesChannel, setRouteSalesChannel] =
+    useState<SalesChannel>("mercari");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(Boolean(draft));
   const [feedback, setFeedback] = useState(
@@ -215,13 +283,25 @@ export default function RevenueLedger({
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   }, [entries]);
 
+  const routeEntries = useMemo(
+    () =>
+      routeFilterEnabled
+        ? entries.filter(
+            (entry) =>
+              entry.source === routeSource &&
+              getSalesChannel(entry) === routeSalesChannel
+          )
+        : entries,
+    [entries, routeFilterEnabled, routeSalesChannel, routeSource]
+  );
+
   const soldEntriesForMonth = useMemo(
     () =>
-      entries.filter(
+      routeEntries.filter(
         (entry) =>
           entry.status === "sold" && entry.saleDate.startsWith(selectedMonth)
       ),
-    [entries, selectedMonth]
+    [routeEntries, selectedMonth]
   );
 
   const monthlySummary = useMemo(
@@ -244,14 +324,14 @@ export default function RevenueLedger({
 
   const visibleEntries = useMemo(
     () =>
-      entries
+      routeEntries
         .filter((entry) => getEntryMonth(entry) === selectedMonth)
         .toSorted((a, b) => {
           const dateA = a.status === "sold" ? a.saleDate : a.purchaseDate;
           const dateB = b.status === "sold" ? b.saleDate : b.purchaseDate;
           return dateB.localeCompare(dateA);
         }),
-    [entries, selectedMonth]
+    [routeEntries, selectedMonth]
   );
 
   const chartData = useMemo(() => {
@@ -259,14 +339,14 @@ export default function RevenueLedger({
 
     return months.map((month) => ({
       ...month,
-      profit: entries
+      profit: routeEntries
         .filter(
           (entry) =>
             entry.status === "sold" && entry.saleDate.startsWith(month.value)
         )
         .reduce((total, entry) => total + calculateProfit(entry), 0),
     }));
-  }, [entries, selectedMonth]);
+  }, [routeEntries, selectedMonth]);
 
   const categoryData = useMemo(() => {
     const totals = new Map<string, number>();
@@ -287,13 +367,27 @@ export default function RevenueLedger({
     1,
     ...chartData.map((item) => Math.abs(item.profit))
   );
-  const stockCount = entries.filter((entry) => entry.status === "stock").length;
+  const stockCount = routeEntries.filter((entry) => entry.status === "stock").length;
 
   const updateForm = <Key extends keyof LedgerForm>(
     key: Key,
     value: LedgerForm[Key]
   ) => {
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const swapFilterRoute = () => {
+    setRouteSource(routeSalesChannel);
+    setRouteSalesChannel(routeSource);
+    setRouteFilterEnabled(true);
+  };
+
+  const swapFormRoute = () => {
+    setForm((current) => ({
+      ...current,
+      source: current.salesChannel || "mercari",
+      salesChannel: current.source,
+    }));
   };
 
   const resetForm = () => {
@@ -331,6 +425,7 @@ export default function RevenueLedger({
         `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       productName,
       source: form.source,
+      salesChannel: form.salesChannel || "mercari",
       category: form.category,
       status: form.status,
       purchaseDate: form.purchaseDate,
@@ -364,6 +459,7 @@ export default function RevenueLedger({
     setForm({
       productName: entry.productName,
       source: entry.source,
+      salesChannel: getSalesChannel(entry),
       category: entry.category,
       status: entry.status,
       purchaseDate: entry.purchaseDate,
@@ -423,6 +519,48 @@ export default function RevenueLedger({
         </div>
       </section>
 
+      <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-black">🔄 販売ルート切り替え</h2>
+            <p className="mt-1 text-xs text-gray-500">
+              選んだルートだけの利益と取引を表示できます
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRouteFilterEnabled(false)}
+            className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold ${
+              routeFilterEnabled
+                ? "bg-gray-100 text-gray-600"
+                : "bg-violet-600 text-white"
+            }`}
+          >
+            すべて
+          </button>
+        </div>
+
+        <RouteSelector
+          source={routeSource}
+          salesChannel={routeSalesChannel}
+          onSourceChange={(source) => {
+            setRouteSource(source);
+            setRouteFilterEnabled(true);
+          }}
+          onSalesChannelChange={(salesChannel) => {
+            setRouteSalesChannel(salesChannel);
+            setRouteFilterEnabled(true);
+          }}
+          onSwap={swapFilterRoute}
+        />
+
+        <p className="mt-3 rounded-xl bg-violet-50 px-3 py-2 text-center text-sm font-black text-violet-700">
+          {routeFilterEnabled
+            ? `${platformLabels[routeSource]} → ${platformLabels[routeSalesChannel]} を表示中`
+            : "すべての販売ルートを表示中"}
+        </p>
+      </section>
+
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 shadow-sm">
           <p className="text-xs font-bold text-blue-700">💎 売上</p>
@@ -473,6 +611,13 @@ export default function RevenueLedger({
               if (showForm) {
                 resetForm();
               } else {
+                if (routeFilterEnabled) {
+                  setForm({
+                    ...createEmptyForm(),
+                    source: routeSource,
+                    salesChannel: routeSalesChannel,
+                  });
+                }
                 setShowForm(true);
                 setFeedback("");
               }
@@ -521,41 +666,33 @@ export default function RevenueLedger({
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="ledger-source" className="mb-2 block font-bold">
-                  仕入れ先
-                </label>
-                <select
-                  id="ledger-source"
-                  value={form.source}
-                  onChange={(event) =>
-                    updateForm("source", event.target.value as LedgerSource)
-                  }
-                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3"
-                >
-                  {Object.entries(sourceLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="ledger-category" className="mb-2 block font-bold">
-                  ジャンル
-                </label>
-                <select
-                  id="ledger-category"
-                  value={form.category}
-                  onChange={(event) => updateForm("category", event.target.value)}
-                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3"
-                >
-                  {categoryOptions.map((category) => (
-                    <option key={category}>{category}</option>
-                  ))}
-                </select>
-              </div>
+            <div className="rounded-2xl border border-violet-100 bg-gradient-to-r from-violet-50 to-fuchsia-50 p-4">
+              <p className="mb-3 font-black text-violet-900">販売ルート</p>
+              <RouteSelector
+                source={form.source}
+                salesChannel={form.salesChannel || "mercari"}
+                onSourceChange={(source) => updateForm("source", source)}
+                onSalesChannelChange={(salesChannel) =>
+                  updateForm("salesChannel", salesChannel)
+                }
+                onSwap={swapFormRoute}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="ledger-category" className="mb-2 block font-bold">
+                ジャンル
+              </label>
+              <select
+                id="ledger-category"
+                value={form.category}
+                onChange={(event) => updateForm("category", event.target.value)}
+                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3"
+              >
+                {categoryOptions.map((category) => (
+                  <option key={category}>{category}</option>
+                ))}
+              </select>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -780,7 +917,7 @@ export default function RevenueLedger({
                           {entry.status === "sold" ? "販売済み" : "在庫"}
                         </span>
                         <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">
-                          {sourceLabels[entry.source]}
+                          {platformLabels[entry.source]} → {platformLabels[getSalesChannel(entry)]}
                         </span>
                         <span className="rounded-full bg-fuchsia-50 px-2 py-1 text-fuchsia-700">
                           {entry.category}

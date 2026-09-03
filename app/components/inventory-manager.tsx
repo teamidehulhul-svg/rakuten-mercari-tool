@@ -2,7 +2,11 @@
 
 import Image from "next/image";
 import { FormEvent, useMemo, useState } from "react";
-import type { LedgerSource } from "./revenue-ledger";
+import {
+  getSalesChannel,
+  platformLabels,
+  type TradePlatform,
+} from "../lib/trade-route";
 
 type InventoryStatus = "purchased" | "listed";
 type LedgerStatus = "stock" | "sold";
@@ -10,7 +14,8 @@ type LedgerStatus = "stock" | "sold";
 type InventoryEntry = {
   id: string;
   productName: string;
-  source: LedgerSource;
+  source: TradePlatform;
+  salesChannel?: TradePlatform;
   category: string;
   status: LedgerStatus;
   inventoryStatus?: InventoryStatus;
@@ -35,6 +40,7 @@ type InventoryFilter = "all" | InventoryStatus | "sold";
 
 type SaleForm = {
   saleDate: string;
+  salesChannel: TradePlatform;
   salePrice: string;
   sellingFee: string;
   shippingCost: string;
@@ -48,17 +54,12 @@ type InventoryManagerProps = {
 
 const STORAGE_KEY = "sedori-management-ledger-v1";
 
-const sourceLabels: Record<LedgerSource, string> = {
-  rakuten: "楽天仕入れ",
-  ebay: "eBay仕入れ",
-  amazon: "Amazon仕入れ",
-  other: "その他仕入れ",
-};
-
-const sourceStyles: Record<LedgerSource, string> = {
+const sourceStyles: Record<TradePlatform, string> = {
   rakuten: "border-red-200 bg-red-50 text-red-600",
   ebay: "border-blue-200 bg-blue-50 text-blue-600",
   amazon: "border-orange-200 bg-orange-50 text-orange-700",
+  mercari: "border-red-200 bg-red-50 text-red-600",
+  yahoo: "border-purple-200 bg-purple-50 text-purple-700",
   other: "border-gray-200 bg-gray-50 text-gray-600",
 };
 
@@ -217,6 +218,7 @@ export default function InventoryManager({
     setSaleEntryId(entry.id);
     setSaleForm({
       saleDate: getJapanDate(),
+      salesChannel: getSalesChannel(entry),
       salePrice: String(entry.salePrice || ""),
       sellingFee: String(
         entry.sellingFee || Math.floor((entry.salePrice || 0) * 0.1) || ""
@@ -252,6 +254,7 @@ export default function InventoryManager({
       status: "sold",
       inventoryStatus: undefined,
       saleDate: saleForm.saleDate,
+      salesChannel: saleForm.salesChannel,
       salePrice,
       sellingFee: Number(saleForm.sellingFee || 0),
       shippingCost: Number(saleForm.shippingCost || 0),
@@ -402,7 +405,7 @@ export default function InventoryManager({
                     <span
                       className={`mt-2 inline-block rounded-lg border px-2 py-1 text-xs font-bold ${sourceStyles[entry.source]}`}
                     >
-                      {sourceLabels[entry.source]}
+                      {platformLabels[entry.source]} → {platformLabels[getSalesChannel(entry)]}
                     </span>
                   </div>
                 </div>
@@ -477,6 +480,39 @@ export default function InventoryManager({
                       >
                         閉じる
                       </button>
+                    </div>
+
+                    <div className="rounded-xl bg-white p-3">
+                      <p className="text-xs font-bold text-gray-500">販売ルート</p>
+                      <div className="mt-2 grid grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)] items-center gap-2">
+                        <span className="truncate rounded-lg bg-gray-50 px-3 py-3 text-center text-sm font-black">
+                          {platformLabels[entry.source]}
+                        </span>
+                        <span className="text-center font-black text-violet-400" aria-hidden="true">
+                          →
+                        </span>
+                        <select
+                          aria-label="販売先"
+                          value={saleForm.salesChannel}
+                          onChange={(event) =>
+                            setSaleForm((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    salesChannel: event.target.value as TradePlatform,
+                                  }
+                                : current
+                            )
+                          }
+                          className="min-w-0 rounded-lg border border-violet-200 bg-white px-2 py-3 text-sm font-black"
+                        >
+                          {Object.entries(platformLabels).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
