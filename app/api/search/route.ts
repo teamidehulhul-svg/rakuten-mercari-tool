@@ -5,6 +5,9 @@ export async function GET(request: NextRequest) {
    const { searchParams } = new URL(request.url);
 const keyword = searchParams.get("keyword");
 const page = searchParams.get("page") || "1";
+const sort = searchParams.get("sort");
+const minPrice = Math.max(0, Math.floor(Number(searchParams.get("minPrice")) || 0));
+const maxPrice = Math.max(0, Math.floor(Number(searchParams.get("maxPrice")) || 0));
 
     if (!keyword) {
       return NextResponse.json(
@@ -40,6 +43,15 @@ const page = searchParams.get("page") || "1";
    apiUrl.searchParams.set("hits", "30");
 apiUrl.searchParams.set("page", page);
 apiUrl.searchParams.set("imageFlag", "1");
+if (sort === "priceAsc") {
+  apiUrl.searchParams.set("sort", "+itemPrice");
+}
+if (minPrice > 0) {
+  apiUrl.searchParams.set("minPrice", String(minPrice));
+}
+if (maxPrice > 0 && maxPrice >= minPrice) {
+  apiUrl.searchParams.set("maxPrice", String(maxPrice));
+}
 const response = await fetch(apiUrl.toString(), {
   cache: "no-store",
   headers: {

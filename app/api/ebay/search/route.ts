@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
       Math.max(1, Math.floor(Number(searchParams.get("pages")) || 1))
     );
     const requestedCount = requestedPages * 30;
+    const sort = searchParams.get("sort");
 
     if (!keyword) {
       return NextResponse.json(
@@ -94,6 +95,9 @@ export async function GET(request: NextRequest) {
         ebayUrl.searchParams.set(isGtin ? "gtin" : "q", keyword);
         ebayUrl.searchParams.set("limit", String(limit));
         ebayUrl.searchParams.set("offset", String(offset));
+        if (sort === "priceAsc") {
+          ebayUrl.searchParams.set("sort", "price");
+        }
 
         const ebayResponse = await fetch(ebayUrl.toString(), {
           headers: {
