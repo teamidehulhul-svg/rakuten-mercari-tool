@@ -15,8 +15,53 @@ type ListingSupportProps = {
   draft: ListingDraft | null;
 };
 
-type ListingPlatform = "mercari" | "ebay";
+type ListingPlatform = "mercari" | "rakuma" | "yahoo" | "ebay";
 type ConditionKey = "new" | "likeNew" | "good" | "fair";
+
+const platformSettings: Record<
+  ListingPlatform,
+  {
+    label: string;
+    shortLabel: string;
+    url: string;
+    maxTitleLength: number;
+    defaultFeeRate: number;
+    activeClass: string;
+  }
+> = {
+  mercari: {
+    label: "🔴 メルカリ",
+    shortLabel: "メルカリ",
+    url: "https://jp.mercari.com/sell",
+    maxTitleLength: 40,
+    defaultFeeRate: 10,
+    activeClass: "bg-red-500 text-white shadow-sm",
+  },
+  rakuma: {
+    label: "🟣 ラクマ",
+    shortLabel: "ラクマ",
+    url: "https://fril.jp/item/new",
+    maxTitleLength: 40,
+    defaultFeeRate: 10,
+    activeClass: "bg-fuchsia-600 text-white shadow-sm",
+  },
+  yahoo: {
+    label: "🔵 Yahoo!フリマ",
+    shortLabel: "Yahoo!フリマ",
+    url: "https://paypayfleamarket.yahoo.co.jp/",
+    maxTitleLength: 65,
+    defaultFeeRate: 5,
+    activeClass: "bg-blue-600 text-white shadow-sm",
+  },
+  ebay: {
+    label: "🌎 eBay",
+    shortLabel: "eBay",
+    url: "https://www.ebay.com/sl/sell",
+    maxTitleLength: 80,
+    defaultFeeRate: 15,
+    activeClass: "bg-sky-600 text-white shadow-sm",
+  },
+};
 
 const conditionLabels: Record<ConditionKey, { mercari: string; ebay: string }> = {
   new: { mercari: "新品・未使用", ebay: "New" },
@@ -26,7 +71,11 @@ const conditionLabels: Record<ConditionKey, { mercari: string; ebay: string }> =
 };
 
 const initialPlatform = (draft: ListingDraft | null): ListingPlatform =>
-  draft?.salesChannel === "ebay" ? "ebay" : "mercari";
+  draft?.salesChannel === "ebay"
+    ? "ebay"
+    : draft?.salesChannel === "yahoo"
+      ? "yahoo"
+      : "mercari";
 
 export default function ListingSupport({ draft }: ListingSupportProps) {
   const [platform, setPlatform] = useState<ListingPlatform>(() =>
@@ -41,6 +90,10 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
   const [englishIncludedItems, setEnglishIncludedItems] = useState("");
   const [price, setPrice] = useState(
     draft?.expectedPrice ? String(draft.expectedPrice) : ""
+  );
+  const [shippingCost, setShippingCost] = useState("750");
+  const [feeRate, setFeeRate] = useState(() =>
+    String(platformSettings[initialPlatform(draft)].defaultFeeRate)
   );
   const [notes, setNotes] = useState("");
   const [englishNotes, setEnglishNotes] = useState("");
@@ -92,7 +145,11 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
         .join("\n")
         .trim();
 
-      return { title, description, maxTitleLength: 80 };
+      return {
+        title,
+        description,
+        maxTitleLength: platformSettings.ebay.maxTitleLength,
+      };
     }
 
     const title = [cleanBrandModel, cleanProductName]
@@ -100,7 +157,13 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
       .join(" ")
       .replace(/\s+/g, " ")
       .trim()
-      .slice(0, 40);
+      .slice(0, platformSettings[platform].maxTitleLength);
+    const closingLine =
+      platform === "rakuma"
+        ? "コメントなしで購入OKです！"
+        : platform === "yahoo"
+          ? "ご購入前に写真と説明をご確認ください。"
+          : "即購入OKです！";
     const description = [
       "ご覧いただきありがとうございます。",
       "",
@@ -115,13 +178,17 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
       "",
       "商品の状態は写真でもご確認ください。",
       "丁寧に梱包して発送します。",
-      "即購入OKです！",
+      closingLine,
     ]
       .filter((line, index, lines) => line !== "" || lines[index - 1] !== "")
       .join("\n")
       .trim();
 
-    return { title, description, maxTitleLength: 40 };
+    return {
+      title,
+      description,
+      maxTitleLength: platformSettings[platform].maxTitleLength,
+    };
   }, [
     additionalDescription,
     brandModel,
@@ -216,17 +283,35 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
     }
   };
 
-  const formattedPrice = price
-    ? `¥${Number(price || 0).toLocaleString("ja-JP")}`
-    : "未入力";
+  const currentPlatform = platformSettings[platform];
+  const numericPrice = Number(price) || 0;
+  const numericFeeRate = Math.max(0, Number(feeRate) || 0);
+  const numericShippingCost = Math.max(0, Number(shippingCost) || 0);
+  const estimatedFee = Math.floor(numericPrice * (numericFeeRate / 100));
+  const estimatedReceipt = Math.max(
+    0,
+    numericPrice - estimatedFee - numericShippingCost
+  );
+
+  const combinedListingText = `${output.title}\n\n${output.description}\n\n出品価格：${
+    price ? `¥${numericPrice.toLocaleString("ja-JP")}` : "未入力"
+  }`;
+
+  const copyAndOpenPlatform = () => {
+    window.open(currentPlatform.url, "_blank", "noopener,noreferrer");
+    void copyText(
+      combinedListingText,
+      `出品内容（${currentPlatform.shortLabel}を開きました）`
+    );
+  };
 
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-fuchsia-500 via-pink-500 to-orange-400 p-5 text-white shadow-lg sm:p-7">
-        <p className="text-sm font-bold text-white/80">月額0円で使える</p>
+        <p className="text-sm font-bold text-white/80">1回入力で4つの販売先に対応</p>
         <h2 className="mt-1 text-2xl font-black">✍️ 出品サポート</h2>
         <p className="mt-2 text-sm font-bold text-white/85">
-          入力した商品情報から、タイトルと説明文をすぐ作成します
+          出品内容をまとめて作り、コピーして各サービスをすぐ開けます
         </p>
       </section>
 
@@ -241,30 +326,34 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
 
       <section className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
         <h2 className="text-lg font-black">販売先</h2>
-        <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1">
+        <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1 sm:grid-cols-4">
           {(
-            [
-              ["mercari", "🔴 メルカリ"],
-              ["ebay", "🌎 eBay"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => {
-                setPlatform(value);
-                setFeedback("");
-              }}
-              className={`rounded-lg px-3 py-3 font-black ${
-                platform === value
-                  ? "bg-white text-violet-700 shadow-sm"
-                  : "text-gray-500"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+            Object.entries(platformSettings) as [
+              ListingPlatform,
+              (typeof platformSettings)[ListingPlatform],
+            ][]
+          ).map(([value, settings]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setPlatform(value);
+                  setFeeRate(String(settings.defaultFeeRate));
+                  setFeedback("");
+                }}
+                className={`min-h-12 rounded-lg px-2 py-3 text-sm font-black ${
+                  platform === value
+                    ? settings.activeClass
+                    : "text-gray-500"
+                }`}
+              >
+                {settings.label}
+              </button>
+            ))}
         </div>
+        <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-800">
+          🔒 最後の「出品する」は各サービスで内容を確認して自分で押します
+        </p>
 
         <div className="mt-5 space-y-4">
           <div>
@@ -325,7 +414,7 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label htmlFor="listing-price" className="mb-2 block font-bold">
                 出品価格（円）
@@ -342,6 +431,39 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
               />
             </div>
             <div>
+              <label htmlFor="listing-shipping" className="mb-2 block font-bold">
+                送料（円）
+              </label>
+              <input
+                id="listing-shipping"
+                type="number"
+                min="0"
+                inputMode="numeric"
+                value={shippingCost}
+                onChange={(event) => setShippingCost(event.target.value)}
+                placeholder="例：750"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3"
+              />
+            </div>
+            <div>
+              <label htmlFor="listing-fee-rate" className="mb-2 block font-bold">
+                販売手数料率（%）
+              </label>
+              <input
+                id="listing-fee-rate"
+                type="number"
+                min="0"
+                step="0.1"
+                inputMode="decimal"
+                value={feeRate}
+                onChange={(event) => setFeeRate(event.target.value)}
+                className="w-full rounded-xl border border-gray-300 px-4 py-3"
+              />
+              <p className="mt-1 text-xs text-gray-500">変動する場合は修正OK</p>
+            </div>
+          </div>
+
+          <div>
               <label htmlFor="listing-notes" className="mb-2 block font-bold">
                 傷・動作・補足
               </label>
@@ -352,7 +474,6 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
                 placeholder="例：動作確認済み、画面に小傷あり"
                 className="w-full rounded-xl border border-gray-300 px-4 py-3"
               />
-            </div>
           </div>
 
           <div>
@@ -479,6 +600,26 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
         </div>
       </section>
 
+      <section className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 p-5 text-white shadow-sm sm:p-6">
+        <p className="text-sm font-bold text-white/80">売れた時の受取目安</p>
+        <p className="mt-1 text-3xl font-black">
+          ¥{estimatedReceipt.toLocaleString("ja-JP")}
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-bold">
+          <div className="rounded-xl bg-white/15 p-3">
+            手数料目安
+            <span className="mt-1 block text-lg">−¥{estimatedFee.toLocaleString("ja-JP")}</span>
+          </div>
+          <div className="rounded-xl bg-white/15 p-3">
+            送料
+            <span className="mt-1 block text-lg">−¥{numericShippingCost.toLocaleString("ja-JP")}</span>
+          </div>
+        </div>
+        <p className="mt-3 text-xs font-bold text-white/80">
+          ※仕入れ代を引く前の金額です。手数料はカテゴリ等で変わる場合があります。
+        </p>
+      </section>
+
       <section className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-black">完成した出品タイトル</h2>
@@ -520,16 +661,31 @@ export default function ListingSupport({ draft }: ListingSupportProps) {
           <button
             type="button"
             onClick={() =>
-              void copyText(
-                `${output.title}\n\n${output.description}\n\n出品価格：${formattedPrice}`,
-                "出品内容"
-              )
+              void copyText(combinedListingText, "出品内容")
             }
             className="rounded-xl bg-gradient-to-r from-pink-500 to-orange-400 px-3 py-3 text-sm font-black text-white"
           >
             ✨ 全部コピー
           </button>
         </div>
+        <button
+          type="button"
+          onClick={copyAndOpenPlatform}
+          className={`mt-3 w-full rounded-xl px-4 py-4 font-black text-white shadow-sm ${
+            platform === "mercari"
+              ? "bg-red-500"
+              : platform === "rakuma"
+                ? "bg-fuchsia-600"
+                : platform === "yahoo"
+                  ? "bg-blue-600"
+                  : "bg-sky-600"
+          }`}
+        >
+          📋 全部コピーして{currentPlatform.shortLabel}を開く
+        </button>
+        <p className="mt-3 text-center text-xs font-bold text-gray-500">
+          開いた出品画面に、コピーした内容を貼り付けて確認してください
+        </p>
       </section>
     </div>
   );

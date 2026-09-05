@@ -433,7 +433,7 @@ export default function Home() {
           : activeTab === "calculator"
             ? "商品情報を引き継いで純利益・利益率・ROIを計算します"
             : activeTab === "listing"
-              ? "メルカリ・eBay向けの出品タイトルと説明文を作ります"
+              ? "メルカリ・ラクマ・Yahoo!フリマ・eBay向けの出品文をまとめて作ります"
               : activeTab === "scanner"
                 ? "バーコードを読み取って楽天・eBay・Amazonから検索します"
                 : activeTab === "inventory"
