@@ -93,6 +93,24 @@ type CalculatorProduct = {
   itemUrl?: string;
 };
 
+type CalculatorSalesChannel = "mercari-rakuma" | "yahoo";
+
+const calculatorSalesChannels: Record<
+  CalculatorSalesChannel,
+  { label: string; feeRate: number; activeClass: string }
+> = {
+  "mercari-rakuma": {
+    label: "🔴 メルカリ・ラクマ",
+    feeRate: 10,
+    activeClass: "bg-gradient-to-r from-red-500 to-fuchsia-500 text-white",
+  },
+  yahoo: {
+    label: "🔵 Yahoo!フリマ",
+    feeRate: 5,
+    activeClass: "bg-blue-600 text-white",
+  },
+};
+
 const researchTabs: {
   tab: ResearchTab;
   label: string;
@@ -199,6 +217,8 @@ export default function Home() {
   const [calculatorProduct, setCalculatorProduct] =
     useState<CalculatorProduct | null>(null);
   const [calcSource, setCalcSource] = useState<TradePlatform>("other");
+  const [calcSalesChannel, setCalcSalesChannel] =
+    useState<CalculatorSalesChannel>("mercari-rakuma");
   const [calcProductName, setCalcProductName] = useState("");
   const [calcPurchasePrice, setCalcPurchasePrice] = useState("");
   const [calcMercariPrice, setCalcMercariPrice] = useState("");
@@ -207,8 +227,9 @@ export default function Home() {
   const calcPurchase = Number(calcPurchasePrice || 0);
   const calcSale = Number(calcMercariPrice || 0);
   const calcShipping = Number(calcMercariShipping || 0);
-  const calcMercariFee = Math.floor(calcSale * 0.1);
-  const calcProfit = calcSale - calcMercariFee - calcShipping - calcPurchase;
+  const calcFeeRate = calculatorSalesChannels[calcSalesChannel].feeRate;
+  const calcSellingFee = Math.floor(calcSale * (calcFeeRate / 100));
+  const calcProfit = calcSale - calcSellingFee - calcShipping - calcPurchase;
   const calcProfitRate = calcSale > 0 ? (calcProfit / calcSale) * 100 : 0;
   const calcROI = calcPurchase > 0 ? (calcProfit / calcPurchase) * 100 : 0;
   const hasCalculation = calcPurchase > 0 && calcSale > 0;
@@ -253,6 +274,7 @@ export default function Home() {
     setCalcSource(product.source);
     setCalcProductName(product.productName);
     setCalcPurchasePrice(String(product.purchasePrice));
+    setCalcSalesChannel("mercari-rakuma");
     setCalcMercariPrice("");
     setCalcMercariShipping("750");
     setActiveTab("calculator");
@@ -264,6 +286,7 @@ export default function Home() {
     setCalcSource("other");
     setCalcProductName("");
     setCalcPurchasePrice("");
+    setCalcSalesChannel("mercari-rakuma");
     setCalcMercariPrice("");
     setCalcMercariShipping("750");
     setActiveTab("calculator");
@@ -883,6 +906,34 @@ export default function Home() {
 
             <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
               <div className="space-y-4">
+                <div>
+                  <p className="font-bold">販売先</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1">
+                    {(
+                      Object.entries(calculatorSalesChannels) as [
+                        CalculatorSalesChannel,
+                        (typeof calculatorSalesChannels)[CalculatorSalesChannel],
+                      ][]
+                    ).map(([value, settings]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setCalcSalesChannel(value)}
+                        className={`min-h-14 rounded-lg px-3 py-3 text-sm font-black shadow-sm ${
+                          calcSalesChannel === value
+                            ? settings.activeClass
+                            : "bg-white text-gray-600"
+                        }`}
+                      >
+                        {settings.label}
+                        <span className="mt-1 block text-xs opacity-80">
+                          手数料 {settings.feeRate}%
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {!calculatorProduct && (
                   <label className="block font-bold">
                     仕入れ先
@@ -930,7 +981,9 @@ export default function Home() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block font-bold">
-                    メルカリ販売予定価格
+                    {calcSalesChannel === "yahoo"
+                      ? "Yahoo!フリマ販売予定価格"
+                      : "メルカリ・ラクマ販売予定価格"}
                     <input
                       type="number"
                       min="0"
@@ -957,8 +1010,8 @@ export default function Home() {
                 </div>
 
                 <div className="flex items-center justify-between rounded-xl bg-gray-100 px-4 py-3 text-sm font-bold text-gray-700">
-                  <span>販売手数料10%（自動計算）</span>
-                  <span>{formatYen(calcMercariFee)}</span>
+                  <span>販売手数料{calcFeeRate}%（自動計算）</span>
+                  <span>{formatYen(calcSellingFee)}</span>
                 </div>
               </div>
             </div>
@@ -1013,10 +1066,11 @@ export default function Home() {
                     openLedgerWithDraft({
                       productName: calcProductName.trim() || "仕入れ商品",
                       source: calcSource,
-                      salesChannel: "mercari",
+                      salesChannel:
+                        calcSalesChannel === "yahoo" ? "yahoo" : "mercari",
                       purchasePrice: calcPurchase,
                       expectedSalePrice: calcSale,
-                      sellingFee: calcMercariFee,
+                      sellingFee: calcSellingFee,
                       shippingCost: calcShipping,
                       imageUrl: calculatorProduct?.imageUrl,
                       itemUrl: calculatorProduct?.itemUrl,
