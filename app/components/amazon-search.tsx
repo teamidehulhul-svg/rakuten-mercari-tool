@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { LedgerDraft } from "./revenue-ledger";
 import { createTranslatedEbayResearchUrl } from "../lib/ebay-research";
+import { createMercariSearchUrl } from "../lib/mercari-search";
+import MercariMarketLinks from "./mercari-market-links";
 
 type AmazonSearchProps = {
   initialKeyword?: string;
@@ -20,25 +22,6 @@ const createAmazonUrl = (value: string) => {
   }
 
   return `https://www.amazon.co.jp/s?k=${encodeURIComponent(query)}`;
-};
-
-const createMercariUrl = (
-  value: string,
-  options?: { soldOnly?: boolean; order?: "asc" | "desc" }
-) => {
-  const query = value.trim();
-
-  if (!query) return "";
-
-  const params = new URLSearchParams({ keyword: query });
-
-  if (options?.soldOnly) params.set("status", "sold_out");
-  if (options?.order) {
-    params.set("sort", "price");
-    params.set("order", options.order);
-  }
-
-  return `https://jp.mercari.com/search?${params.toString()}`;
 };
 
 export default function AmazonSearch({
@@ -74,15 +57,7 @@ export default function AmazonSearch({
   );
   const researchTitle = (productName || keyword).trim();
   const mercariUrl = useMemo(
-    () => createMercariUrl(researchTitle),
-    [researchTitle]
-  );
-  const mercariSoldLowUrl = useMemo(
-    () => createMercariUrl(researchTitle, { soldOnly: true, order: "asc" }),
-    [researchTitle]
-  );
-  const mercariSoldHighUrl = useMemo(
-    () => createMercariUrl(researchTitle, { soldOnly: true, order: "desc" }),
+    () => createMercariSearchUrl(researchTitle),
     [researchTitle]
   );
   const ebayResearchTitle = researchTitle;
@@ -262,50 +237,7 @@ export default function AmazonSearch({
           )}
         </div>
 
-        <div className="mt-3 rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50 to-red-50 p-4">
-          <div className="flex items-center gap-3">
-            <span className="rounded-lg bg-rose-500 px-2 py-1 text-xs font-black tracking-wide text-white shadow-sm">
-              SOLD
-            </span>
-            <div>
-              <h3 className="font-black text-gray-900">メルカリ相場を確認</h3>
-              <p className="mt-0.5 text-xs font-medium text-gray-500">
-                販売済み商品の価格帯をチェック
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
-            {mercariSoldLowUrl ? (
-              <a
-                href={mercariSoldLowUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-h-12 rounded-xl border border-rose-200 bg-white px-3 py-3 text-center text-sm font-black text-rose-700 shadow-sm"
-              >
-                安い順で見る
-              </a>
-            ) : (
-              <span className="min-h-12 rounded-xl bg-gray-100 px-3 py-3 text-center text-sm font-bold text-gray-400">
-                安い順で見る
-              </span>
-            )}
-            {mercariSoldHighUrl ? (
-              <a
-                href={mercariSoldHighUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-h-12 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 px-3 py-3 text-center text-sm font-black text-white shadow-sm"
-              >
-                高い順で見る
-              </a>
-            ) : (
-              <span className="min-h-12 rounded-xl bg-gray-100 px-3 py-3 text-center text-sm font-bold text-gray-400">
-                高い順で見る
-              </span>
-            )}
-          </div>
-        </div>
+        <MercariMarketLinks title={researchTitle} />
 
         {ebayResearchTitle ? (
           <a

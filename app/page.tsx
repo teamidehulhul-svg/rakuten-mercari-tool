@@ -9,6 +9,7 @@ import AppNavigation, {
 } from "./components/app-navigation";
 import BarcodeScanner from "./components/barcode-scanner";
 import EbayResearchBox from "./components/ebay-research-box";
+import MercariMarketLinks from "./components/mercari-market-links";
 import type { ListingDraft } from "./components/listing-support";
 import type { LedgerDraft } from "./components/revenue-ledger";
 import {
@@ -792,6 +793,7 @@ export default function Home() {
                     🔍 ほかの商品も見る
                   </a>
                 </div>
+                <MercariMarketLinks title={rakutenProduct.itemName} />
                 <a
                   href={createTranslatedEbayResearchUrl(rakutenProduct.itemName)}
                   target="_blank"
@@ -915,6 +917,10 @@ export default function Home() {
                               eBay調査 ↗
                             </a>
                           </div>
+                          <MercariMarketLinks
+                            title={product.itemName}
+                            variant="compact"
+                          />
                         </div>
                       </article>
                     );
@@ -1064,6 +1070,7 @@ export default function Home() {
                     🔍 ほかの商品も見る
                   </a>
                 </div>
+                <MercariMarketLinks title={ebayProduct.title} />
                 <a
                   href={createTranslatedEbayResearchUrl(ebayProduct.title)}
                   target="_blank"
@@ -1188,6 +1195,10 @@ export default function Home() {
                               売れ行き調査 ↗
                             </a>
                           </div>
+                          <MercariMarketLinks
+                            title={product.title}
+                            variant="compact"
+                          />
                         </div>
                       </article>
                     );
