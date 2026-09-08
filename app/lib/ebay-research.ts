@@ -20,6 +20,7 @@ const researchKeywordRules: Array<[RegExp, string]> = [
   [/カメラ/, "Camera"],
   [/フィギュア/, "Figure"],
   [/ぬいぐるみ/, "Plush"],
+  [/漫画|コミック/, "Manga"],
   [/包丁/, "Kitchen Knife"],
   [/箸/, "Chopsticks"],
   [/着物/, "Kimono"],
@@ -53,10 +54,10 @@ export const createEbayResearchQuery = (title: string) => {
   return asciiTerms || cleanedTitle.slice(0, 80);
 };
 
-export const createEbayResearchUrl = (title: string) => {
+export const createEbayResearchUrlFromQuery = (query: string) => {
   const params = new URLSearchParams({
     marketplace: "EBAY-US",
-    keywords: createEbayResearchQuery(title),
+    keywords: query.trim(),
     dayRange: "365",
     categoryId: "0",
     offset: "0",
@@ -67,3 +68,9 @@ export const createEbayResearchUrl = (title: string) => {
 
   return `https://www.ebay.com/sh/research?${params.toString()}`;
 };
+
+export const createEbayResearchUrl = (title: string) =>
+  createEbayResearchUrlFromQuery(createEbayResearchQuery(title));
+
+export const createTranslatedEbayResearchUrl = (title: string) =>
+  `/api/ebay/research?title=${encodeURIComponent(title.trim())}`;

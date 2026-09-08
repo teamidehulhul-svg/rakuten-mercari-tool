@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { LedgerDraft } from "./revenue-ledger";
-import { createEbayResearchUrl } from "../lib/ebay-research";
+import { createTranslatedEbayResearchUrl } from "../lib/ebay-research";
 
 type AmazonSearchProps = {
   initialKeyword?: string;
@@ -233,7 +233,7 @@ export default function AmazonSearch({
 
         {ebayResearchTitle ? (
           <a
-            href={createEbayResearchUrl(ebayResearchTitle)}
+            href={createTranslatedEbayResearchUrl(ebayResearchTitle)}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 block w-full rounded-xl bg-gradient-to-r from-blue-700 to-blue-500 px-5 py-4 text-center font-black text-white shadow-sm"

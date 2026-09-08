@@ -14,7 +14,7 @@ import {
   platformLabels,
   type TradePlatform,
 } from "./lib/trade-route";
-import { createEbayResearchUrl } from "./lib/ebay-research";
+import { createTranslatedEbayResearchUrl } from "./lib/ebay-research";
 
 const HomeDashboard = dynamic(() => import("./components/home-dashboard"), {
   ssr: false,
@@ -667,7 +667,7 @@ export default function Home() {
                   </a>
                 </div>
                 <a
-                  href={createEbayResearchUrl(rakutenProduct.itemName)}
+                  href={createTranslatedEbayResearchUrl(rakutenProduct.itemName)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-3 block w-full rounded-xl bg-gradient-to-r from-blue-700 to-blue-500 px-5 py-4 text-center font-black text-white shadow-sm"
@@ -823,7 +823,7 @@ export default function Home() {
                   </a>
                 </div>
                 <a
-                  href={createEbayResearchUrl(ebayProduct.title)}
+                  href={createTranslatedEbayResearchUrl(ebayProduct.title)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-3 block w-full rounded-xl bg-gradient-to-r from-blue-700 to-blue-500 px-5 py-4 text-center font-black text-white shadow-sm"
