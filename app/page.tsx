@@ -372,6 +372,7 @@ export default function Home() {
     requestedPage = 1
   ) => {
     const searchKeyword = barcodeKeyword?.trim() || rakutenKeyword.trim();
+    const shouldScrollToResults = requestedPage !== rakutenPage;
 
     if (!searchKeyword) {
       setError("楽天で検索する商品名を入力してください");
@@ -436,11 +437,15 @@ export default function Home() {
       setRakutenPage(data.page || requestedPage);
       setRakutenPageCount(Math.max(1, data.pageCount || 1));
       setRakutenTotal(data.count || rankedItems.length);
-      if (requestedPage > 1) {
-        window.setTimeout(
-          () => rakutenResultsRef.current?.scrollIntoView({ behavior: "smooth" }),
-          0
-        );
+      if (shouldScrollToResults) {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            rakutenResultsRef.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          });
+        });
       }
     } catch (searchError) {
       setError(
@@ -458,6 +463,7 @@ export default function Home() {
     requestedPage = 1
   ) => {
     const searchKeyword = barcodeKeyword?.trim() || ebayKeyword.trim();
+    const shouldScrollToResults = requestedPage !== ebayPage;
 
     if (!searchKeyword) {
       setError("eBayで検索する商品名を入力してください");
@@ -518,11 +524,15 @@ export default function Home() {
       setEbayPage(data.page || requestedPage);
       setEbayPageCount(Math.max(1, data.pageCount || 1));
       setEbayTotal(data.total || rankedItems.length);
-      if (requestedPage > 1) {
-        window.setTimeout(
-          () => ebayResultsRef.current?.scrollIntoView({ behavior: "smooth" }),
-          0
-        );
+      if (shouldScrollToResults) {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            ebayResultsRef.current?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          });
+        });
       }
     } catch (searchError) {
       setError(
