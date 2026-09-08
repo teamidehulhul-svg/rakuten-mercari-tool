@@ -7,6 +7,10 @@ import { translateJapaneseText } from "@/app/lib/translate-ja-en";
 
 const MAX_TITLE_LENGTH = 400;
 const JAPANESE_TEXT = /[\u3040-\u30ff\u3400-\u9fff]/;
+const DIRECT_QUERIES = new Map([
+  ["漫画", "Manga"],
+  ["コミック", "Manga"],
+]);
 
 const optimizeTranslatedQuery = (source: string, translated: string) => {
   let query = translated.trim();
@@ -28,14 +32,15 @@ export async function GET(request: Request) {
     );
   }
 
-  let researchQuery = createEbayResearchQuery(title);
+  const directQuery = DIRECT_QUERIES.get(title);
+  let researchQuery = directQuery || createEbayResearchQuery(title);
 
-  if (JAPANESE_TEXT.test(title)) {
+  if (!directQuery && JAPANESE_TEXT.test(title)) {
     try {
       const translated = await translateJapaneseText(title);
       researchQuery = optimizeTranslatedQuery(title, translated) || researchQuery;
     } catch (error) {
-      console.error("eBay research translation failed; using fallback:", error);
+      console.warn("eBay research translation unavailable; using fallback:", error);
     }
   }
 
