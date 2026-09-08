@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { LedgerDraft } from "./revenue-ledger";
+import { createEbayResearchUrl } from "../lib/ebay-research";
 
 type AmazonSearchProps = {
   initialKeyword?: string;
@@ -59,6 +60,7 @@ export default function AmazonSearch({
       )}`,
     [keyword, productName]
   );
+  const ebayResearchTitle = (productName || keyword).trim();
 
   const purchase = Number(purchasePrice || 0);
   const sale = Number(mercariPrice || 0);
@@ -228,6 +230,21 @@ export default function AmazonSearch({
             メルカリで検索
           </a>
         </div>
+
+        {ebayResearchTitle ? (
+          <a
+            href={createEbayResearchUrl(ebayResearchTitle)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 block w-full rounded-xl bg-gradient-to-r from-blue-700 to-blue-500 px-5 py-4 text-center font-black text-white shadow-sm"
+          >
+            eBay売れ行き調査 ↗
+          </a>
+        ) : (
+          <span className="mt-3 block w-full rounded-xl bg-gray-100 px-5 py-4 text-center font-bold text-gray-400">
+            商品名を入れるとeBay調査できます
+          </span>
+        )}
 
         {hasCalculation && (
           <div className="mt-5 rounded-xl bg-emerald-50 p-4">
