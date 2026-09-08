@@ -545,6 +545,22 @@ export default function Home() {
     }
   };
 
+  const changeRakutenResultsPage = (page: number) => {
+    rakutenResultsRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    void searchRakutenProducts(undefined, page);
+  };
+
+  const changeEbayResultsPage = (page: number) => {
+    ebayResultsRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    void searchEbayProducts(undefined, page);
+  };
+
   const navigateMain = (tab: MainNavigationTab) => {
     if (tab === "research") {
       openResearchTab(lastResearchTab);
@@ -851,7 +867,7 @@ export default function Home() {
                   page={rakutenPage}
                   pageCount={rakutenPageCount}
                   loading={rakutenLoading}
-                  onPageChange={(page) => void searchRakutenProducts(undefined, page)}
+                  onPageChange={changeRakutenResultsPage}
                 />
 
                 <div className="mt-4 divide-y divide-gray-100">
@@ -942,9 +958,7 @@ export default function Home() {
                     page={rakutenPage}
                     pageCount={rakutenPageCount}
                     loading={rakutenLoading}
-                    onPageChange={(page) =>
-                      void searchRakutenProducts(undefined, page)
-                    }
+                    onPageChange={changeRakutenResultsPage}
                   />
                 </div>
               </section>
@@ -1128,7 +1142,7 @@ export default function Home() {
                   page={ebayPage}
                   pageCount={ebayPageCount}
                   loading={ebayLoading}
-                  onPageChange={(page) => void searchEbayProducts(undefined, page)}
+                  onPageChange={changeEbayResultsPage}
                 />
 
                 <div className="mt-4 divide-y divide-gray-100">
@@ -1220,7 +1234,7 @@ export default function Home() {
                     page={ebayPage}
                     pageCount={ebayPageCount}
                     loading={ebayLoading}
-                    onPageChange={(page) => void searchEbayProducts(undefined, page)}
+                    onPageChange={changeEbayResultsPage}
                   />
                 </div>
               </section>
