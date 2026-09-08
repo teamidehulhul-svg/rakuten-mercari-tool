@@ -2,12 +2,13 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import AmazonSearch from "./components/amazon-search";
 import AppNavigation, {
   type MainNavigationTab,
 } from "./components/app-navigation";
 import BarcodeScanner from "./components/barcode-scanner";
+import EbayResearchBox from "./components/ebay-research-box";
 import type { ListingDraft } from "./components/listing-support";
 import type { LedgerDraft } from "./components/revenue-ledger";
 import {
@@ -193,6 +194,67 @@ const getEbayPricing = (product: EbayProduct, usdJpyRate: number) => {
 
 const formatYen = (value: number) => `¥${value.toLocaleString("ja-JP")}`;
 
+const getKeywordMatchScore = (title: string, keyword: string) => {
+  const normalize = (value: string) =>
+    value.toLocaleLowerCase().replace(/[\s\-_/・,，.。()（）【】\[\]]/g, "");
+  const normalizedTitle = normalize(title);
+  const normalizedKeyword = normalize(keyword);
+
+  if (!normalizedKeyword) return 0;
+  if (normalizedTitle === normalizedKeyword) return 1000;
+  if (normalizedTitle.includes(normalizedKeyword)) return 500;
+
+  return keyword
+    .toLocaleLowerCase()
+    .split(/[\s　]+/)
+    .filter((token) => token.length >= 2)
+    .reduce(
+      (score, token) => score + (normalizedTitle.includes(normalize(token)) ? 50 : 0),
+      0
+    );
+};
+
+type PaginationControlsProps = {
+  page: number;
+  pageCount: number;
+  loading: boolean;
+  onPageChange: (page: number) => void;
+};
+
+function PaginationControls({
+  page,
+  pageCount,
+  loading,
+  onPageChange,
+}: PaginationControlsProps) {
+  return (
+    <nav
+      aria-label="検索結果のページ切り替え"
+      className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 p-2"
+    >
+      <button
+        type="button"
+        onClick={() => onPageChange(page - 1)}
+        disabled={loading || page <= 1}
+        className="min-h-11 rounded-lg bg-white px-4 py-2 text-sm font-black text-gray-700 shadow-sm disabled:opacity-35"
+      >
+        ← 前へ
+      </button>
+      <span className="text-sm font-black text-gray-700">
+        {page} / {pageCount}ページ
+      </span>
+      <button
+        type="button"
+        onClick={() => onPageChange(page + 1)}
+        disabled={loading || page >= pageCount}
+        className="min-h-11 rounded-lg bg-white px-4 py-2 text-sm font-black text-gray-700 shadow-sm disabled:opacity-35"
+      >
+        次へ →
+      </button>
+    </nav>
+  );
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("home");
   const [lastResearchTab, setLastResearchTab] =
@@ -205,6 +267,10 @@ export default function Home() {
   const [rakutenKeyword, setRakutenKeyword] = useState("");
   const [rakutenProduct, setRakutenProduct] =
     useState<RakutenProduct | null>(null);
+  const [rakutenProducts, setRakutenProducts] = useState<RakutenProduct[]>([]);
+  const [rakutenPage, setRakutenPage] = useState(1);
+  const [rakutenPageCount, setRakutenPageCount] = useState(1);
+  const [rakutenTotal, setRakutenTotal] = useState(0);
   const [rakutenLoading, setRakutenLoading] = useState(false);
   const [minRakutenPrice, setMinRakutenPrice] = useState("");
   const [maxRakutenPrice, setMaxRakutenPrice] = useState("");
@@ -212,8 +278,14 @@ export default function Home() {
 
   const [ebayKeyword, setEbayKeyword] = useState("");
   const [ebayProduct, setEbayProduct] = useState<EbayProduct | null>(null);
+  const [ebayProducts, setEbayProducts] = useState<EbayProduct[]>([]);
+  const [ebayPage, setEbayPage] = useState(1);
+  const [ebayPageCount, setEbayPageCount] = useState(1);
+  const [ebayTotal, setEbayTotal] = useState(0);
   const [ebayLoading, setEbayLoading] = useState(false);
   const [usdJpyRate, setUsdJpyRate] = useState("150");
+  const rakutenResultsRef = useRef<HTMLDivElement>(null);
+  const ebayResultsRef = useRef<HTMLDivElement>(null);
 
   const [calculatorProduct, setCalculatorProduct] =
     useState<CalculatorProduct | null>(null);
@@ -294,7 +366,10 @@ export default function Home() {
     setError("");
   };
 
-  const searchRakutenProducts = async (barcodeKeyword?: string) => {
+  const searchRakutenProducts = async (
+    barcodeKeyword?: string,
+    requestedPage = 1
+  ) => {
     const searchKeyword = barcodeKeyword?.trim() || rakutenKeyword.trim();
 
     if (!searchKeyword) {
@@ -305,14 +380,16 @@ export default function Home() {
     if (barcodeKeyword) setRakutenKeyword(searchKeyword);
 
     setRakutenLoading(true);
-    setRakutenProduct(null);
+    if (requestedPage === 1) {
+      setRakutenProduct(null);
+      setRakutenProducts([]);
+    }
     setError("");
 
     try {
       const params = new URLSearchParams({
         keyword: searchKeyword,
-        page: "1",
-        sort: "priceAsc",
+        page: String(requestedPage),
       });
 
       if (Number(minRakutenPrice) > 0) params.set("minPrice", minRakutenPrice);
@@ -322,6 +399,9 @@ export default function Home() {
       const data = (await response.json()) as {
         success?: boolean;
         message?: string;
+        count?: number;
+        page?: number;
+        pageCount?: number;
         items?: ({ Item?: RakutenProduct } | RakutenProduct)[];
       };
 
@@ -333,17 +413,34 @@ export default function Home() {
         "Item" in entry && entry.Item ? entry.Item : (entry as RakutenProduct)
       );
       const extraRate = Number(extraPointRate) || 0;
-      const cheapest = [...items].sort(
-        (a, b) =>
-          getRakutenPricing(a, extraRate).effectivePrice -
-          getRakutenPricing(b, extraRate).effectivePrice
-      )[0];
+      const rankedItems = [...items].sort((a, b) => {
+        const scoreDifference =
+          getKeywordMatchScore(b.itemName, searchKeyword) -
+          getKeywordMatchScore(a.itemName, searchKeyword);
 
-      if (!cheapest) {
+        return (
+          scoreDifference ||
+          getRakutenPricing(a, extraRate).effectivePrice -
+            getRakutenPricing(b, extraRate).effectivePrice
+        );
+      });
+      const recommended = rankedItems[0];
+
+      if (!recommended) {
         throw new Error("条件に合う楽天商品が見つかりませんでした");
       }
 
-      setRakutenProduct(cheapest);
+      setRakutenProducts(rankedItems);
+      setRakutenProduct(recommended);
+      setRakutenPage(data.page || requestedPage);
+      setRakutenPageCount(Math.max(1, data.pageCount || 1));
+      setRakutenTotal(data.count || rankedItems.length);
+      if (requestedPage > 1) {
+        window.setTimeout(
+          () => rakutenResultsRef.current?.scrollIntoView({ behavior: "smooth" }),
+          0
+        );
+      }
     } catch (searchError) {
       setError(
         searchError instanceof Error
@@ -355,7 +452,10 @@ export default function Home() {
     }
   };
 
-  const searchEbayProducts = async (barcodeKeyword?: string) => {
+  const searchEbayProducts = async (
+    barcodeKeyword?: string,
+    requestedPage = 1
+  ) => {
     const searchKeyword = barcodeKeyword?.trim() || ebayKeyword.trim();
 
     if (!searchKeyword) {
@@ -366,19 +466,24 @@ export default function Home() {
     if (barcodeKeyword) setEbayKeyword(searchKeyword);
 
     setEbayLoading(true);
-    setEbayProduct(null);
+    if (requestedPage === 1) {
+      setEbayProduct(null);
+      setEbayProducts([]);
+    }
     setError("");
 
     try {
       const params = new URLSearchParams({
         keyword: convertToEbayKeyword(searchKeyword),
-        pages: "1",
-        sort: "priceAsc",
+        page: String(requestedPage),
       });
       const response = await fetch(`/api/ebay/search?${params.toString()}`);
       const data = (await response.json()) as {
         success?: boolean;
         message?: string;
+        total?: number;
+        page?: number;
+        pageCount?: number;
         items?: EbayProduct[];
       };
 
@@ -390,17 +495,34 @@ export default function Home() {
       const pricedItems = (data.items || []).filter(
         (item) => getEbayPricing(item, rate).totalJpy > 0
       );
-      const cheapest = [...pricedItems].sort(
-        (a, b) =>
-          getEbayPricing(a, rate).totalJpy -
-          getEbayPricing(b, rate).totalJpy
-      )[0];
+      const convertedKeyword = convertToEbayKeyword(searchKeyword);
+      const rankedItems = [...pricedItems].sort((a, b) => {
+        const scoreDifference =
+          getKeywordMatchScore(b.title, convertedKeyword) -
+          getKeywordMatchScore(a.title, convertedKeyword);
 
-      if (!cheapest) {
+        return (
+          scoreDifference ||
+          getEbayPricing(a, rate).totalJpy - getEbayPricing(b, rate).totalJpy
+        );
+      });
+      const recommended = rankedItems[0];
+
+      if (!recommended) {
         throw new Error("条件に合うeBay商品が見つかりませんでした");
       }
 
-      setEbayProduct(cheapest);
+      setEbayProducts(rankedItems);
+      setEbayProduct(recommended);
+      setEbayPage(data.page || requestedPage);
+      setEbayPageCount(Math.max(1, data.pageCount || 1));
+      setEbayTotal(data.total || rankedItems.length);
+      if (requestedPage > 1) {
+        window.setTimeout(
+          () => ebayResultsRef.current?.scrollIntoView({ behavior: "smooth" }),
+          0
+        );
+      }
     } catch (searchError) {
       setError(
         searchError instanceof Error
@@ -432,9 +554,9 @@ export default function Home() {
 
   const pageTitle =
     activeTab === "rakuten"
-      ? "楽天で最安値検索"
+      ? "楽天で仕入れ候補検索"
       : activeTab === "ebay"
-        ? "eBayで最安値検索"
+        ? "eBayで仕入れ候補検索"
         : activeTab === "amazon"
           ? "Amazon → メルカリ"
           : activeTab === "calculator"
@@ -449,9 +571,9 @@ export default function Home() {
 
   const pageDescription =
     activeTab === "rakuten"
-      ? "取得した商品の中から実質仕入れ価格が一番安い商品を表示します"
+      ? "商品名の一致度を優先し、価格も比べながら候補を30件ずつ表示します"
       : activeTab === "ebay"
-        ? "商品価格と海外送料を合わせた最安商品を表示します"
+        ? "商品名の一致度を優先し、送料込み価格も比べながら30件ずつ表示します"
         : activeTab === "amazon"
           ? "Amazonの商品を検索してメルカリ販売の利益を確認します"
           : activeTab === "calculator"
@@ -514,6 +636,10 @@ export default function Home() {
           </div>
         )}
 
+        {isResearchTab(activeTab) && activeTab !== "scanner" && (
+          <EbayResearchBox />
+        )}
+
         {activeTab === "rakuten" && (
           <section className="space-y-6">
             <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
@@ -535,7 +661,7 @@ export default function Home() {
                   disabled={rakutenLoading}
                   className="min-h-12 rounded-xl bg-red-500 px-6 py-3 font-bold text-white disabled:opacity-50"
                 >
-                  {rakutenLoading ? "最安値を検索中..." : "🔍 最安値を検索"}
+                  {rakutenLoading ? "候補を検索中..." : "🔍 候補を検索"}
                 </button>
               </div>
 
@@ -585,10 +711,10 @@ export default function Home() {
               <article className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-red-100 sm:p-6">
                 <div className="mb-5 flex items-center justify-between gap-3">
                   <span className="rounded-full bg-red-500 px-4 py-2 text-sm font-black text-white">
-                    最安値
+                    おすすめ候補
                   </span>
                   <span className="text-xs font-bold text-gray-400">
-                    実質価格で比較
+                    商品名の一致度＋実質価格
                   </span>
                 </div>
 
@@ -691,6 +817,122 @@ export default function Home() {
                 </button>
               </article>
             )}
+
+            {rakutenProducts.length > 0 && (
+              <section
+                ref={rakutenResultsRef}
+                className="scroll-mt-24 rounded-3xl bg-white p-4 shadow-sm sm:p-6"
+              >
+                <div className="mb-4 flex items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black">楽天の検索候補</h2>
+                    <p className="mt-1 text-sm font-bold text-gray-500">
+                      全{rakutenTotal.toLocaleString()}件・1ページ最大30件
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">
+                    気になる商品を選べる
+                  </span>
+                </div>
+
+                <PaginationControls
+                  page={rakutenPage}
+                  pageCount={rakutenPageCount}
+                  loading={rakutenLoading}
+                  onPageChange={(page) => void searchRakutenProducts(undefined, page)}
+                />
+
+                <div className="mt-4 divide-y divide-gray-100">
+                  {rakutenProducts.map((product, index) => {
+                    const pricing = getRakutenPricing(
+                      product,
+                      Number(extraPointRate) || 0
+                    );
+                    const isSelected =
+                      product.itemCode === rakutenProduct?.itemCode;
+
+                    return (
+                      <article
+                        key={`${product.itemCode}-${index}`}
+                        className={`grid grid-cols-[5rem_minmax(0,1fr)] gap-3 py-4 sm:grid-cols-[6rem_minmax(0,1fr)] ${
+                          isSelected ? "bg-red-50/60" : ""
+                        }`}
+                      >
+                        <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-50">
+                          {product.mediumImageUrls?.[0]?.imageUrl ? (
+                            <Image
+                              src={product.mediumImageUrls[0].imageUrl}
+                              alt={product.itemName}
+                              fill
+                              sizes="96px"
+                              className="object-contain p-1"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-xs text-gray-400">
+                              画像なし
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="line-clamp-2 text-sm font-black leading-5 text-gray-900 sm:text-base">
+                              {product.itemName}
+                            </h3>
+                            <span className="shrink-0 text-xs font-black text-gray-400">
+                              #{(rakutenPage - 1) * 30 + index + 1}
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate text-xs font-bold text-gray-500">
+                            {product.shopName}
+                          </p>
+                          <p className="mt-2 text-lg font-black text-red-600">
+                            実質 {formatYen(pricing.effectivePrice)}
+                            <span className="ml-2 text-xs font-bold text-gray-400">
+                              販売 {formatYen(pricing.itemPrice)}
+                            </span>
+                          </p>
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRakutenProduct(product);
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                              }}
+                              className={`rounded-lg px-3 py-2 text-xs font-black ${
+                                isSelected
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {isSelected ? "✓ 選択中" : "この候補を選ぶ"}
+                            </button>
+                            <a
+                              href={createTranslatedEbayResearchUrl(product.itemName)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg bg-blue-600 px-3 py-2 text-center text-xs font-black text-white"
+                            >
+                              eBay調査 ↗
+                            </a>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4">
+                  <PaginationControls
+                    page={rakutenPage}
+                    pageCount={rakutenPageCount}
+                    loading={rakutenLoading}
+                    onPageChange={(page) =>
+                      void searchRakutenProducts(undefined, page)
+                    }
+                  />
+                </div>
+              </section>
+            )}
           </section>
         )}
 
@@ -715,7 +957,7 @@ export default function Home() {
                   disabled={ebayLoading}
                   className="min-h-12 rounded-xl bg-blue-600 px-6 py-3 font-bold text-white disabled:opacity-50"
                 >
-                  {ebayLoading ? "最安値を検索中..." : "🔍 最安値を検索"}
+                  {ebayLoading ? "候補を検索中..." : "🔍 候補を検索"}
                 </button>
               </div>
 
@@ -745,10 +987,10 @@ export default function Home() {
               <article className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-blue-100 sm:p-6">
                 <div className="mb-5 flex items-center justify-between gap-3">
                   <span className="rounded-full bg-blue-600 px-4 py-2 text-sm font-black text-white">
-                    最安値
+                    おすすめ候補
                   </span>
                   <span className="text-xs font-bold text-gray-400">
-                    商品価格＋海外送料
+                    商品名の一致度＋送料込み価格
                   </span>
                 </div>
 
@@ -846,6 +1088,121 @@ export default function Home() {
                   💰 利益計算へ送る
                 </button>
               </article>
+            )}
+
+            {ebayProducts.length > 0 && (
+              <section
+                ref={ebayResultsRef}
+                className="scroll-mt-24 rounded-3xl bg-white p-4 shadow-sm sm:p-6"
+              >
+                <div className="mb-4 flex items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-black">eBayの検索候補</h2>
+                    <p className="mt-1 text-sm font-bold text-gray-500">
+                      全{ebayTotal.toLocaleString()}件・1ページ最大30件
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
+                    気になる商品を選べる
+                  </span>
+                </div>
+
+                <PaginationControls
+                  page={ebayPage}
+                  pageCount={ebayPageCount}
+                  loading={ebayLoading}
+                  onPageChange={(page) => void searchEbayProducts(undefined, page)}
+                />
+
+                <div className="mt-4 divide-y divide-gray-100">
+                  {ebayProducts.map((product, index) => {
+                    const pricing = getEbayPricing(
+                      product,
+                      Number(usdJpyRate) || 0
+                    );
+                    const isSelected = product.itemId === ebayProduct?.itemId;
+
+                    return (
+                      <article
+                        key={product.itemId}
+                        className={`grid grid-cols-[5rem_minmax(0,1fr)] gap-3 py-4 sm:grid-cols-[6rem_minmax(0,1fr)] ${
+                          isSelected ? "bg-blue-50/60" : ""
+                        }`}
+                      >
+                        <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-50">
+                          {product.image?.imageUrl ? (
+                            <Image
+                              src={product.image.imageUrl}
+                              alt={product.title}
+                              fill
+                              sizes="96px"
+                              className="object-contain p-1"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-xs text-gray-400">
+                              画像なし
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="line-clamp-2 text-sm font-black leading-5 text-gray-900 sm:text-base">
+                              {product.title}
+                            </h3>
+                            <span className="shrink-0 text-xs font-black text-gray-400">
+                              #{(ebayPage - 1) * 30 + index + 1}
+                            </span>
+                          </div>
+                          {product.condition && (
+                            <p className="mt-1 text-xs font-bold text-gray-500">
+                              状態：{product.condition}
+                            </p>
+                          )}
+                          <p className="mt-2 text-lg font-black text-blue-600">
+                            約{formatYen(pricing.totalJpy)}
+                            <span className="ml-2 text-xs font-bold text-gray-400">
+                              ${pricing.itemPriceUsd.toLocaleString()}＋送料
+                            </span>
+                          </p>
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEbayProduct(product);
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                              }}
+                              className={`rounded-lg px-3 py-2 text-xs font-black ${
+                                isSelected
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {isSelected ? "✓ 選択中" : "この候補を選ぶ"}
+                            </button>
+                            <a
+                              href={createTranslatedEbayResearchUrl(product.title)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg bg-blue-600 px-3 py-2 text-center text-xs font-black text-white"
+                            >
+                              売れ行き調査 ↗
+                            </a>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4">
+                  <PaginationControls
+                    page={ebayPage}
+                    pageCount={ebayPageCount}
+                    loading={ebayLoading}
+                    onPageChange={(page) => void searchEbayProducts(undefined, page)}
+                  />
+                </div>
+              </section>
             )}
           </section>
         )}

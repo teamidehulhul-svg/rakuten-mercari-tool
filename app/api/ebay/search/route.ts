@@ -5,11 +5,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const keyword = searchParams.get("keyword");
     const isGtin = /^\d{8,14}$/.test(keyword ?? "");
+    const page = Math.max(
+      1,
+      Math.floor(Number(searchParams.get("page")) || 1)
+    );
+    const hasPageParameter = searchParams.has("page");
     const requestedPages = Math.min(
       10,
       Math.max(1, Math.floor(Number(searchParams.get("pages")) || 1))
     );
-    const requestedCount = requestedPages * 30;
+    const requestedCount = hasPageParameter ? 30 : requestedPages * 30;
     const sort = searchParams.get("sort");
 
     if (!keyword) {
@@ -79,9 +84,15 @@ export async function GET(request: NextRequest) {
     // 300件指定時だけ複数回に分けて取得する。
     const batches: { limit: number; offset: number }[] = [];
 
-    for (let offset = 0; offset < requestedCount; offset += 200) {
+    const startingOffset = hasPageParameter ? (page - 1) * 30 : 0;
+
+    for (
+      let offset = startingOffset;
+      offset < startingOffset + requestedCount;
+      offset += 200
+    ) {
       batches.push({
-        limit: Math.min(200, requestedCount - offset),
+        limit: Math.min(200, startingOffset + requestedCount - offset),
         offset,
       });
     }
@@ -135,6 +146,8 @@ export async function GET(request: NextRequest) {
       total,
       count: items.length,
       requestedCount,
+      page,
+      pageCount: Math.max(1, Math.ceil(total / 30)),
       items,
     });
   } catch (error) {

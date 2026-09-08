@@ -77,6 +77,8 @@ const response = await fetch(apiUrl.toString(), {
     return NextResponse.json({
       success: true,
       count: data.count ?? 0,
+      page: data.page ?? Number(page),
+      pageCount: data.pageCount ?? 1,
       items: data.Items ?? [],
     });
   } catch (error) {
