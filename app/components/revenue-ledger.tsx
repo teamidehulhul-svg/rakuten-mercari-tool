@@ -148,6 +148,26 @@ const categoryOptions = [
   "その他",
 ];
 
+const estimatedFeeRates: Partial<Record<SalesChannel, number>> = {
+  mercari: 10,
+  yahoo: 5,
+  ebay: 20,
+};
+
+const getEstimatedSellingFee = (
+  salesChannel: SalesChannel,
+  salePriceValue: string
+) => {
+  const rate = estimatedFeeRates[salesChannel];
+  const salePrice = Number(salePriceValue);
+
+  if (rate === undefined || !Number.isFinite(salePrice) || salePrice <= 0) {
+    return "";
+  }
+
+  return String(Math.floor(salePrice * (rate / 100)));
+};
+
 const formatYen = (value: number) => `${value.toLocaleString("ja-JP")}円`;
 
 const getJapanDate = () =>
@@ -233,18 +253,23 @@ const readStoredLedger = () => {
 
 const createDraftForm = (draft: LedgerDraft): LedgerForm => {
   const today = getJapanDate();
+  const salesChannel = draft.salesChannel || "mercari";
+  const salePrice = String(draft.expectedSalePrice || "");
 
   return {
     productName: draft.productName,
     source: draft.source,
-    salesChannel: draft.salesChannel || "mercari",
+    salesChannel,
     category: draft.category || "その他",
     status: "stock",
     purchaseDate: today,
     saleDate: today,
     purchasePrice: String(draft.purchasePrice || ""),
-    salePrice: String(draft.expectedSalePrice || ""),
-    sellingFee: String(draft.sellingFee || ""),
+    salePrice,
+    sellingFee:
+      draft.sellingFee !== undefined
+        ? String(draft.sellingFee)
+        : getEstimatedSellingFee(salesChannel, salePrice),
     shippingCost: String(draft.shippingCost ?? 750),
     otherExpenses: String(draft.otherExpenses || 0),
   };
@@ -376,6 +401,25 @@ export default function RevenueLedger({
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const updateSalePrice = (salePrice: string) => {
+    setForm((current) => ({
+      ...current,
+      salePrice,
+      sellingFee: getEstimatedSellingFee(
+        current.salesChannel || "mercari",
+        salePrice
+      ),
+    }));
+  };
+
+  const updateSalesChannel = (salesChannel: SalesChannel) => {
+    setForm((current) => ({
+      ...current,
+      salesChannel,
+      sellingFee: getEstimatedSellingFee(salesChannel, current.salePrice),
+    }));
+  };
+
   const swapFilterRoute = () => {
     setRouteSource(routeSalesChannel);
     setRouteSalesChannel(routeSource);
@@ -387,6 +431,7 @@ export default function RevenueLedger({
       ...current,
       source: current.salesChannel || "mercari",
       salesChannel: current.source,
+      sellingFee: getEstimatedSellingFee(current.source, current.salePrice),
     }));
   };
 
@@ -672,9 +717,7 @@ export default function RevenueLedger({
                 source={form.source}
                 salesChannel={form.salesChannel || "mercari"}
                 onSourceChange={(source) => updateForm("source", source)}
-                onSalesChannelChange={(salesChannel) =>
-                  updateForm("salesChannel", salesChannel)
-                }
+                onSalesChannelChange={updateSalesChannel}
                 onSwap={swapFormRoute}
               />
             </div>
@@ -752,7 +795,7 @@ export default function RevenueLedger({
                   min="0"
                   inputMode="numeric"
                   value={form.salePrice}
-                  onChange={(event) => updateForm("salePrice", event.target.value)}
+                  onChange={(event) => updateSalePrice(event.target.value)}
                   placeholder="0"
                   className="w-full rounded-xl border border-gray-300 px-4 py-3"
                 />
@@ -762,7 +805,11 @@ export default function RevenueLedger({
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label htmlFor="ledger-fee" className="mb-2 block text-xs font-bold sm:text-sm">
-                  販売手数料
+                  {form.salesChannel === "ebay"
+                    ? "eBay概算費用"
+                    : estimatedFeeRates[form.salesChannel || "mercari"] !== undefined
+                      ? "販売手数料（自動）"
+                      : "販売手数料"}
                 </label>
                 <input
                   id="ledger-fee"
@@ -806,6 +853,12 @@ export default function RevenueLedger({
                 />
               </div>
             </div>
+
+            {form.salesChannel === "ebay" && (
+              <p className="rounded-xl bg-blue-50 px-3 py-2 text-sm font-bold text-blue-800">
+                eBayは販売額の20％で安全側に概算します。実際の手数料が分かったら、この欄だけ修正できます。
+              </p>
+            )}
 
             <button
               type="submit"
