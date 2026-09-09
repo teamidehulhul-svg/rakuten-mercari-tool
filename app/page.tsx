@@ -17,6 +17,7 @@ import {
   type TradePlatform,
 } from "./lib/trade-route";
 import { createTranslatedEbayResearchUrl } from "./lib/ebay-research";
+import { exportProfit } from "./lib/export-profit";
 
 const HomeDashboard = dynamic(() => import("./components/home-dashboard"), {
   ssr: false,
@@ -96,12 +97,17 @@ type CalculatorProduct = {
   itemUrl?: string;
 };
 
-type CalculatorSalesChannel = "mercari-rakuma" | "yahoo";
+type CalculatorSalesChannel = "mercari-rakuma" | "yahoo" | "ebay";
 
 const calculatorSalesChannels: Record<
   CalculatorSalesChannel,
   { label: string; feeRate: number; activeClass: string }
 > = {
+  ebay: {
+    label: "🌎 eBay販売",
+    feeRate: 20,
+    activeClass: "bg-gradient-to-r from-blue-600 to-violet-600 text-white",
+  },
   "mercari-rakuma": {
     label: "🔴 メルカリ・ラクマ",
     feeRate: 10,
@@ -297,16 +303,26 @@ export default function Home() {
   const [calcPurchasePrice, setCalcPurchasePrice] = useState("");
   const [calcMercariPrice, setCalcMercariPrice] = useState("");
   const [calcMercariShipping, setCalcMercariShipping] = useState("750");
+  const [calcEbayPrice, setCalcEbayPrice] = useState("");
+  const [calcEbayRate, setCalcEbayRate] = useState("150");
+  const [calcEbayShipping, setCalcEbayShipping] = useState("2500");
+  const [calcEbayPacking, setCalcEbayPacking] = useState("200");
+  const [calcEbayFee, setCalcEbayFee] = useState("20");
+  const [calcEbayFixedFee, setCalcEbayFixedFee] = useState("0");
+  const isExport = calcSalesChannel === "ebay";
+  const exportResult = exportProfit({ purchase: Number(calcPurchasePrice), saleUsd: Number(calcEbayPrice),
+    rate: Number(calcEbayRate), shipping: Number(calcEbayShipping), packing: Number(calcEbayPacking),
+    feePercent: Number(calcEbayFee), fixedFeeUsd: Number(calcEbayFixedFee) });
 
   const calcPurchase = Number(calcPurchasePrice || 0);
-  const calcSale = Number(calcMercariPrice || 0);
-  const calcShipping = Number(calcMercariShipping || 0);
-  const calcFeeRate = calculatorSalesChannels[calcSalesChannel].feeRate;
-  const calcSellingFee = Math.floor(calcSale * (calcFeeRate / 100));
-  const calcProfit = calcSale - calcSellingFee - calcShipping - calcPurchase;
+  const calcSale = isExport ? exportResult.sale : Number(calcMercariPrice || 0);
+  const calcShipping = Number((isExport ? calcEbayShipping : calcMercariShipping) || 0);
+  const calcFeeRate = isExport ? Number(calcEbayFee) : calculatorSalesChannels[calcSalesChannel].feeRate;
+  const calcSellingFee = isExport ? exportResult.fee : Math.floor(calcSale * (calcFeeRate / 100));
+  const calcProfit = isExport ? exportResult.profit : calcSale - calcSellingFee - calcShipping - calcPurchase;
   const calcProfitRate = calcSale > 0 ? (calcProfit / calcSale) * 100 : 0;
   const calcROI = calcPurchase > 0 ? (calcProfit / calcPurchase) * 100 : 0;
-  const hasCalculation = calcPurchase > 0 && calcSale > 0;
+  const hasCalculation = isExport ? exportResult.valid : calcPurchase > 0 && calcSale > 0;
 
   const rakutenPricing = rakutenProduct
     ? getRakutenPricing(rakutenProduct, Number(extraPointRate) || 0)
@@ -344,6 +360,7 @@ export default function Home() {
   };
 
   const openCalculator = (product: CalculatorProduct) => {
+    setCalcEbayPrice("");
     setCalculatorProduct(product);
     setCalcSource(product.source);
     setCalcProductName(product.productName);
@@ -356,6 +373,7 @@ export default function Home() {
   };
 
   const openManualCalculator = () => {
+    setCalcEbayPrice("");
     setCalculatorProduct(null);
     setCalcSource("other");
     setCalcProductName("");
@@ -1317,7 +1335,7 @@ export default function Home() {
               <div className="space-y-4">
                 <div>
                   <p className="font-bold">販売先</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1">
+                  <div className="mt-2 grid gap-2 rounded-xl bg-gray-100 p-1 sm:grid-cols-3">
                     {(
                       Object.entries(calculatorSalesChannels) as [
                         CalculatorSalesChannel,
@@ -1336,7 +1354,7 @@ export default function Home() {
                       >
                         {settings.label}
                         <span className="mt-1 block text-xs opacity-80">
-                          手数料 {settings.feeRate}%
+                          {value === "ebay" ? "概算手数料・諸費用 20%（変更可）" : `手数料 ${settings.feeRate}%`}
                         </span>
                       </button>
                     ))}
@@ -1390,33 +1408,48 @@ export default function Home() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block font-bold">
-                    {calcSalesChannel === "yahoo"
+                    {isExport ? "eBay販売予定額（米ドル・購入者送料込み）" : calcSalesChannel === "yahoo"
                       ? "Yahoo!フリマ販売予定価格"
                       : "メルカリ・ラクマ販売予定価格"}
                     <input
                       type="number"
                       min="0"
-                      inputMode="numeric"
-                      value={calcMercariPrice}
-                      onChange={(event) => setCalcMercariPrice(event.target.value)}
-                      placeholder="例：42800"
+                      inputMode={isExport ? "decimal" : "numeric"}
+                      step={isExport ? "0.01" : "1"}
+                      value={isExport ? calcEbayPrice : calcMercariPrice}
+                      onChange={(event) => isExport ? setCalcEbayPrice(event.target.value) : setCalcMercariPrice(event.target.value)}
+                      placeholder={isExport ? "例：49.99" : "例：42800"}
                       className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-lg font-bold"
                     />
                   </label>
                   <label className="block font-bold">
-                    発送送料
+                    {isExport ? "海外へ送る送料（円）" : "発送送料"}
                     <input
                       type="number"
                       min="0"
                       inputMode="numeric"
-                      value={calcMercariShipping}
+                      value={isExport ? calcEbayShipping : calcMercariShipping}
                       onChange={(event) =>
-                        setCalcMercariShipping(event.target.value)
+                        isExport ? setCalcEbayShipping(event.target.value) : setCalcMercariShipping(event.target.value)
                       }
                       className="mt-2 w-full rounded-xl border border-gray-300 px-4 py-3 text-lg font-bold"
                     />
                   </label>
                 </div>
+
+                {isExport && <div className="space-y-4 rounded-2xl bg-blue-50 p-4">
+                  <p className="font-bold text-blue-800">国内で仕入れ → eBayで販売</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="font-bold">為替（1ドル＝何円）<input type="number" min="0.01" step="0.01" inputMode="decimal" value={calcEbayRate} onChange={e => setCalcEbayRate(e.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3" /></label>
+                    <label className="font-bold">梱包・その他費用（円）<input type="number" min="0" inputMode="numeric" value={calcEbayPacking} onChange={e => setCalcEbayPacking(e.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3" /></label>
+                  </div>
+                  <details><summary className="cursor-pointer py-3 font-bold text-violet-700">手数料の設定を変更</summary>
+                    <label className="block font-bold">概算手数料・諸費用（％）<input type="number" min="0" max="99.99" step="0.01" inputMode="decimal" value={calcEbayFee} onChange={e => setCalcEbayFee(e.target.value)} className="my-2 w-full rounded-xl border bg-white p-3" /></label>
+                    <label className="block font-bold">別途加算する固定手数料（米ドル）<input type="number" min="0" step="0.01" inputMode="decimal" value={calcEbayFixedFee} onChange={e => setCalcEbayFixedFee(e.target.value)} className="my-2 w-full rounded-xl border bg-white p-3" /></label>
+                  </details>
+                  <p className="text-sm text-blue-900">20％は公式の一律料率ではなく概算です。広告・換金費等を含めて見積もる設定で、別の割合は自動加算しません。カテゴリー・税・広告条件で不足する場合があります。固定費を含めて見積もる場合は固定手数料を0にしてください。為替は手入力です。</p>
+                  <p className="font-black text-blue-700">販売予定額：{formatYen(calcSale)}（円換算）</p>
+                </div>}
 
                 <div className="flex items-center justify-between rounded-xl bg-gray-100 px-4 py-3 text-sm font-bold text-gray-700">
                   <span>販売手数料{calcFeeRate}%（自動計算）</span>
@@ -1476,11 +1509,12 @@ export default function Home() {
                       productName: calcProductName.trim() || "仕入れ商品",
                       source: calcSource,
                       salesChannel:
-                        calcSalesChannel === "yahoo" ? "yahoo" : "mercari",
+                        isExport ? "ebay" : calcSalesChannel === "yahoo" ? "yahoo" : "mercari",
                       purchasePrice: calcPurchase,
                       expectedSalePrice: calcSale,
                       sellingFee: calcSellingFee,
                       shippingCost: calcShipping,
+                      otherExpenses: isExport ? Number(calcEbayPacking) : 0,
                       imageUrl: calculatorProduct?.imageUrl,
                       itemUrl: calculatorProduct?.itemUrl,
                     })
