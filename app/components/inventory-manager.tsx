@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
 import {
   getSalesChannel,
   platformLabels,
@@ -37,6 +37,11 @@ type StoredLedger = {
   entries: InventoryEntry[];
 };
 
+type LedgerBackup = StoredLedger & {
+  app: "rakuten-mercari-tool";
+  exportedAt: string;
+};
+
 type InventoryFilter = "all" | InventoryStatus | "sold";
 
 type SaleForm = {
@@ -55,6 +60,12 @@ type InventoryManagerProps = {
 };
 
 const STORAGE_KEY = "sedori-management-ledger-v1";
+
+const estimatedFeeRates: Partial<Record<TradePlatform, number>> = {
+  mercari: 10,
+  yahoo: 5,
+  ebay: 20,
+};
 
 const sourceStyles: Record<TradePlatform, string> = {
   rakuten: "border-red-200 bg-red-50 text-red-600",
@@ -81,6 +92,50 @@ const calculateProfit = (entry: InventoryEntry) =>
   entry.sellingFee -
   entry.shippingCost -
   entry.otherExpenses;
+
+const calculateSellingFee = (
+  salesChannel: TradePlatform,
+  salePrice: number,
+  fallback = 0
+) => {
+  const feeRate = estimatedFeeRates[salesChannel];
+
+  return feeRate === undefined ? fallback : Math.floor(salePrice * (feeRate / 100));
+};
+
+const isInventoryEntry = (value: unknown): value is InventoryEntry => {
+  if (!value || typeof value !== "object") return false;
+
+  const entry = value as Partial<InventoryEntry>;
+
+  return (
+    typeof entry.id === "string" &&
+    typeof entry.productName === "string" &&
+    typeof entry.source === "string" &&
+    typeof entry.category === "string" &&
+    (entry.status === "stock" || entry.status === "sold") &&
+    typeof entry.purchaseDate === "string" &&
+    typeof entry.saleDate === "string" &&
+    typeof entry.purchasePrice === "number" &&
+    typeof entry.salePrice === "number" &&
+    typeof entry.sellingFee === "number" &&
+    typeof entry.shippingCost === "number" &&
+    typeof entry.otherExpenses === "number" &&
+    typeof entry.createdAt === "string"
+  );
+};
+
+const isStoredLedger = (value: unknown): value is StoredLedger => {
+  if (!value || typeof value !== "object") return false;
+
+  const stored = value as Partial<StoredLedger>;
+
+  return (
+    stored.version === 1 &&
+    Array.isArray(stored.entries) &&
+    stored.entries.every(isInventoryEntry)
+  );
+};
 
 const getInventoryStatus = (entry: InventoryEntry): InventoryFilter =>
   entry.status === "sold" ? "sold" : entry.inventoryStatus || "purchased";
@@ -147,6 +202,7 @@ export default function InventoryManager({
   const [saleEntryId, setSaleEntryId] = useState<string | null>(null);
   const [saleForm, setSaleForm] = useState<SaleForm | null>(null);
   const [feedback, setFeedback] = useState(initialData.error);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
 
   const counts = useMemo(
     () => ({
@@ -218,13 +274,19 @@ export default function InventoryManager({
   };
 
   const openSaleForm = (entry: InventoryEntry) => {
+    const salesChannel = getSalesChannel(entry);
+
     setSaleEntryId(entry.id);
     setSaleForm({
       saleDate: getJapanDate(),
-      salesChannel: getSalesChannel(entry),
+      salesChannel,
       salePrice: String(entry.salePrice || ""),
       sellingFee: String(
-        entry.sellingFee || Math.floor((entry.salePrice || 0) * 0.1) || ""
+        calculateSellingFee(
+          salesChannel,
+          entry.salePrice || 0,
+          entry.sellingFee || 0
+        ) || ""
       ),
       shippingCost: String(entry.shippingCost || ""),
       otherExpenses: String(entry.otherExpenses || 0),
@@ -272,6 +334,76 @@ export default function InventoryManager({
     setFeedback(
       `販売登録完了！ 純利益 ${formatYen(calculateProfit(soldEntry))}を収支表に反映しました`
     );
+  };
+
+  const saveBackup = async () => {
+    const backup: LedgerBackup = {
+      app: "rakuten-mercari-tool",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      entries,
+    };
+    const fileName = `せどり管理バックアップ-${getJapanDate()}.json`;
+    const file = new File([JSON.stringify(backup, null, 2)], fileName, {
+      type: "application/json",
+    });
+
+    try {
+      if (
+        typeof navigator.share === "function" &&
+        typeof navigator.canShare === "function" &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({
+          files: [file],
+          title: "せどり管理バックアップ",
+        });
+      } else {
+        const downloadUrl = URL.createObjectURL(file);
+        const link = document.createElement("a");
+
+        link.href = downloadUrl;
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(downloadUrl);
+      }
+
+      setFeedback(`バックアップを作成しました（${entries.length}件）`);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setFeedback("バックアップを保存できませんでした。もう一度お試しください");
+    }
+  };
+
+  const restoreBackup = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    try {
+      const restored = JSON.parse(await file.text()) as unknown;
+
+      if (!isStoredLedger(restored)) {
+        setFeedback("このファイルは、せどり管理アプリのバックアップではありません");
+        return;
+      }
+
+      if (
+        entries.length > 0 &&
+        !window.confirm(
+          `現在の${entries.length}件を、バックアップの${restored.entries.length}件に置き換えますか？`
+        )
+      ) {
+        return;
+      }
+
+      persistEntries(restored.entries);
+      closeSaleForm();
+      setFeedback(`復元しました（${restored.entries.length}件）`);
+    } catch {
+      setFeedback("バックアップを読み込めませんでした。ファイルを確認してください");
+    }
   };
 
   return (
@@ -511,16 +643,25 @@ export default function InventoryManager({
                         <select
                           aria-label="販売先"
                           value={saleForm.salesChannel}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const salesChannel = event.target.value as TradePlatform;
+
                             setSaleForm((current) =>
                               current
                                 ? {
                                     ...current,
-                                    salesChannel: event.target.value as TradePlatform,
+                                    salesChannel,
+                                    sellingFee: String(
+                                      calculateSellingFee(
+                                        salesChannel,
+                                        Number(current.salePrice || 0),
+                                        Number(current.sellingFee || 0)
+                                      )
+                                    ),
                                   }
                                 : current
-                            )
-                          }
+                            );
+                          }}
                           className="min-w-0 rounded-lg border border-violet-200 bg-white px-2 py-3 text-sm font-black"
                         >
                           {Object.entries(platformLabels).map(([value, label]) => (
@@ -568,7 +709,11 @@ export default function InventoryManager({
                                     ...current,
                                     salePrice: nextPrice,
                                     sellingFee: String(
-                                      Math.floor(Number(nextPrice || 0) * 0.1)
+                                      calculateSellingFee(
+                                        current.salesChannel,
+                                        Number(nextPrice || 0),
+                                        Number(current.sellingFee || 0)
+                                      )
                                     ),
                                   }
                                 : current
@@ -583,7 +728,12 @@ export default function InventoryManager({
                     <div className="grid grid-cols-3 gap-2">
                       {(
                         [
-                          ["sellingFee", "手数料"],
+                          [
+                            "sellingFee",
+                            estimatedFeeRates[saleForm.salesChannel] === undefined
+                              ? "手数料"
+                              : `手数料（自動${estimatedFeeRates[saleForm.salesChannel]}%）`,
+                          ],
                           ["shippingCost", "送料"],
                           ["otherExpenses", "その他"],
                         ] as const
@@ -675,8 +825,44 @@ export default function InventoryManager({
         </button>
       </div>
 
+      <section className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-violet-50 p-4 shadow-sm sm:p-5">
+        <div className="flex items-start gap-3">
+          <span className="text-3xl" aria-hidden="true">🛟</span>
+          <div>
+            <h2 className="font-black text-gray-900">データを守る</h2>
+            <p className="mt-1 text-xs leading-5 text-gray-600">
+              在庫・販売・収支を1つのファイルに保存します。機種変更やSafariのデータ消去に備えて、ときどき保存してください。
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={saveBackup}
+            className="rounded-xl bg-blue-600 px-3 py-3 text-sm font-black text-white shadow-sm"
+          >
+            📤 保存する
+          </button>
+          <button
+            type="button"
+            onClick={() => restoreInputRef.current?.click()}
+            className="rounded-xl border border-violet-200 bg-white px-3 py-3 text-sm font-black text-violet-700 shadow-sm"
+          >
+            📥 復元する
+          </button>
+        </div>
+        <input
+          ref={restoreInputRef}
+          type="file"
+          accept="application/json,.json"
+          onChange={restoreBackup}
+          className="sr-only"
+          aria-label="バックアップファイルを選ぶ"
+        />
+      </section>
+
       <p className="rounded-xl bg-amber-50 p-4 text-xs leading-5 text-amber-800">
-        現在は、このスマホ・ブラウザ内に自動保存します。機種変更に備えたクラウド保存とバックアップは次の段階で追加できます。
+        普段はこのスマホ・ブラウザ内に自動保存されます。「📤 保存する」で作ったファイルは消さずに保管してください。
       </p>
     </div>
   );
