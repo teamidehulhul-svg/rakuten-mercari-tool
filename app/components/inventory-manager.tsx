@@ -261,15 +261,31 @@ export default function InventoryManager({
     entry: InventoryEntry,
     inventoryStatus: InventoryStatus
   ) => {
+    if (
+      entry.status === "sold" &&
+      !window.confirm(
+        `「${entry.productName}」を${inventoryStatus === "listed" ? "出品中" : "未出品"}に戻しますか？\n\n売却済みの集計から外れ、在庫に戻ります。`
+      )
+    ) {
+      return;
+    }
+
     const nextEntries = entries.map((item) =>
-      item.id === entry.id ? { ...item, inventoryStatus } : item
+      item.id === entry.id
+        ? {
+            ...item,
+            status: "stock" as const,
+            inventoryStatus,
+            saleDate: "",
+          }
+        : item
     );
 
     persistEntries(nextEntries);
     setFeedback(
       inventoryStatus === "listed"
         ? `「${entry.productName}」を出品中にしました`
-        : `「${entry.productName}」を仕入れ済みに戻しました`
+        : `「${entry.productName}」を未出品にしました`
     );
   };
 
@@ -435,7 +451,7 @@ export default function InventoryManager({
           {(
             [
               ["all", "すべて", counts.all],
-              ["purchased", "仕入れ済み", counts.purchased],
+              ["purchased", "未出品", counts.purchased],
               ["listed", "出品中", counts.listed],
               ["sold", "売却済み", counts.sold],
             ] as const
@@ -534,7 +550,7 @@ export default function InventoryManager({
                           ? "売却済み"
                           : inventoryStatus === "listed"
                             ? "出品中"
-                            : "仕入れ済み"}
+                            : "未出品"}
                       </span>
                     </div>
                     <span
@@ -575,29 +591,59 @@ export default function InventoryManager({
                   </div>
                 </div>
 
-                {entry.status === "stock" && !saleFormOpen && (
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateInventoryStatus(
-                          entry,
-                          inventoryStatus === "listed" ? "purchased" : "listed"
-                        )
-                      }
-                      className="rounded-xl bg-orange-50 px-3 py-3 text-sm font-bold text-orange-700"
-                    >
-                      {inventoryStatus === "listed"
-                        ? "仕入れ済みに戻す"
-                        : "出品中にする"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openSaleForm(entry)}
-                      className="rounded-xl bg-violet-600 px-3 py-3 text-sm font-bold text-white"
-                    >
-                      販売登録へ
-                    </button>
+                {!saleFormOpen && (
+                  <div className="mt-4 space-y-3">
+                    <div>
+                      <p className="mb-2 text-xs font-bold text-gray-500">商品の状態</p>
+                      <div
+                        className="grid grid-cols-3 gap-2"
+                        role="group"
+                        aria-label={`${entry.productName}の状態を変更`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => updateInventoryStatus(entry, "purchased")}
+                          disabled={inventoryStatus === "purchased"}
+                          className={`rounded-xl px-2 py-3 text-xs font-black ${
+                            inventoryStatus === "purchased"
+                              ? "bg-emerald-600 text-white shadow-sm"
+                              : "bg-emerald-50 text-emerald-700"
+                          }`}
+                        >
+                          未出品
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateInventoryStatus(entry, "listed")}
+                          disabled={inventoryStatus === "listed"}
+                          className={`rounded-xl px-2 py-3 text-xs font-black ${
+                            inventoryStatus === "listed"
+                              ? "bg-orange-500 text-white shadow-sm"
+                              : "bg-orange-50 text-orange-700"
+                          }`}
+                        >
+                          出品中
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openSaleForm(entry)}
+                          disabled={inventoryStatus === "sold"}
+                          className={`rounded-xl px-2 py-3 text-xs font-black ${
+                            inventoryStatus === "sold"
+                              ? "bg-violet-600 text-white shadow-sm"
+                              : "bg-violet-50 text-violet-700"
+                          }`}
+                        >
+                          売却済み
+                        </button>
+                      </div>
+                      {entry.status !== "sold" && (
+                        <p className="mt-2 text-[10px] font-bold text-gray-400">
+                          売却済みを押すと、販売金額を確認して収支へ反映します
+                        </p>
+                      )}
+                    </div>
+                    {entry.status === "stock" && (
                     <button
                       type="button"
                       onClick={() =>
@@ -608,10 +654,11 @@ export default function InventoryManager({
                           expectedPrice: entry.salePrice,
                         })
                       }
-                      className="col-span-2 rounded-xl bg-gradient-to-r from-fuchsia-500 to-orange-400 px-3 py-3 text-sm font-black text-white"
+                      className="w-full rounded-xl bg-gradient-to-r from-fuchsia-500 to-orange-400 px-3 py-3 text-sm font-black text-white"
                     >
                       ✍️ この商品の出品文を作る
                     </button>
+                    )}
                   </div>
                 )}
 
