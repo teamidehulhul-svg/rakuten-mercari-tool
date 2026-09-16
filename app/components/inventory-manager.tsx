@@ -201,6 +201,8 @@ export default function InventoryManager({
   const [query, setQuery] = useState("");
   const [saleEntryId, setSaleEntryId] = useState<string | null>(null);
   const [saleForm, setSaleForm] = useState<SaleForm | null>(null);
+  const [priceEditEntryId, setPriceEditEntryId] = useState<string | null>(null);
+  const [priceEditValue, setPriceEditValue] = useState("");
   const [feedback, setFeedback] = useState(initialData.error);
   const restoreInputRef = useRef<HTMLInputElement>(null);
 
@@ -292,9 +294,11 @@ export default function InventoryManager({
   const openSaleForm = (entry: InventoryEntry) => {
     const salesChannel = getSalesChannel(entry);
 
+    setPriceEditEntryId(null);
+    setPriceEditValue("");
     setSaleEntryId(entry.id);
     setSaleForm({
-      saleDate: getJapanDate(),
+      saleDate: entry.saleDate || getJapanDate(),
       salesChannel,
       salePrice: String(entry.salePrice || ""),
       sellingFee: String(
@@ -315,6 +319,58 @@ export default function InventoryManager({
     setSaleForm(null);
   };
 
+  const openPriceEdit = (entry: InventoryEntry) => {
+    if (entry.status === "sold") {
+      openSaleForm(entry);
+      return;
+    }
+
+    closeSaleForm();
+    setPriceEditEntryId(entry.id);
+    setPriceEditValue(String(entry.salePrice || ""));
+    setFeedback("");
+  };
+
+  const closePriceEdit = () => {
+    setPriceEditEntryId(null);
+    setPriceEditValue("");
+  };
+
+  const handlePriceEditSubmit = (
+    event: FormEvent<HTMLFormElement>,
+    entry: InventoryEntry
+  ) => {
+    event.preventDefault();
+
+    const salePrice = Number(priceEditValue || 0);
+
+    if (salePrice <= 0) {
+      setFeedback("予定売価を入力してください");
+      return;
+    }
+
+    const salesChannel = getSalesChannel(entry);
+    const nextEntries = entries.map((item) =>
+      item.id === entry.id
+        ? {
+            ...item,
+            salePrice,
+            sellingFee: calculateSellingFee(
+              salesChannel,
+              salePrice,
+              item.sellingFee
+            ),
+          }
+        : item
+    );
+
+    persistEntries(nextEntries);
+    closePriceEdit();
+    setFeedback(
+      `「${entry.productName}」の予定売価を${formatYen(salePrice)}に変更しました`
+    );
+  };
+
   const handleSaleSubmit = (
     event: FormEvent<HTMLFormElement>,
     entry: InventoryEntry
@@ -330,6 +386,7 @@ export default function InventoryManager({
       return;
     }
 
+    const wasSold = entry.status === "sold";
     const soldEntry: InventoryEntry = {
       ...entry,
       status: "sold",
@@ -348,7 +405,7 @@ export default function InventoryManager({
     persistEntries(nextEntries);
     closeSaleForm();
     setFeedback(
-      `販売登録完了！ 純利益 ${formatYen(calculateProfit(soldEntry))}を収支表に反映しました`
+      `${wasSold ? "販売内容を更新！" : "販売登録完了！"} 純利益 ${formatYen(calculateProfit(soldEntry))}を収支表に反映しました`
     );
   };
 
@@ -416,6 +473,7 @@ export default function InventoryManager({
 
       persistEntries(restored.entries);
       closeSaleForm();
+      closePriceEdit();
       setFeedback(`復元しました（${restored.entries.length}件）`);
     } catch {
       setFeedback("バックアップを読み込めませんでした。ファイルを確認してください");
@@ -509,6 +567,7 @@ export default function InventoryManager({
             const profit = calculateProfit(entry);
             const inventoryDays = getInventoryDays(entry.purchaseDate);
             const saleFormOpen = saleEntryId === entry.id && saleForm;
+            const priceEditOpen = priceEditEntryId === entry.id;
 
             return (
               <article
@@ -570,7 +629,17 @@ export default function InventoryManager({
                     <p className="text-xs text-gray-500">
                       {entry.status === "sold" ? "販売価格" : "予定売価"}
                     </p>
-                    <p className="mt-1 font-black">{formatYen(entry.salePrice)}</p>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <p className="font-black">{formatYen(entry.salePrice)}</p>
+                      <button
+                        type="button"
+                        onClick={() => openPriceEdit(entry)}
+                        className="shrink-0 rounded-lg bg-violet-50 px-2 py-1 text-[11px] font-black text-violet-700"
+                        aria-label={`${entry.productName}の${entry.status === "sold" ? "販売価格" : "予定売価"}を変更`}
+                      >
+                        ✏️ 変更
+                      </button>
+                    </div>
                   </div>
                   <div className="bg-white p-3">
                     <p className="text-xs text-gray-500">
@@ -591,7 +660,57 @@ export default function InventoryManager({
                   </div>
                 </div>
 
-                {!saleFormOpen && (
+                {priceEditOpen && (
+                  <form
+                    onSubmit={(event) => handlePriceEditSubmit(event, entry)}
+                    className="mt-4 rounded-2xl border border-violet-100 bg-violet-50 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <label
+                        htmlFor={`quick-price-${entry.id}`}
+                        className="font-black text-violet-900"
+                      >
+                        ✏️ 予定売価を変更
+                      </label>
+                      <button
+                        type="button"
+                        onClick={closePriceEdit}
+                        className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-gray-600"
+                      >
+                        閉じる
+                      </button>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <div className="relative min-w-0 flex-1">
+                        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-black text-gray-500">
+                          ¥
+                        </span>
+                        <input
+                          id={`quick-price-${entry.id}`}
+                          type="number"
+                          min="1"
+                          inputMode="numeric"
+                          value={priceEditValue}
+                          onChange={(event) => setPriceEditValue(event.target.value)}
+                          className="w-full rounded-xl border border-violet-200 bg-white py-3 pl-8 pr-3 text-lg font-black"
+                          autoFocus
+                          required
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="shrink-0 rounded-xl bg-violet-600 px-5 py-3 font-black text-white"
+                      >
+                        保存
+                      </button>
+                    </div>
+                    <p className="mt-2 text-[11px] font-bold text-violet-700">
+                      保存すると、見込み利益もすぐ更新されます
+                    </p>
+                  </form>
+                )}
+
+                {!saleFormOpen && !priceEditOpen && (
                   <div className="mt-4 space-y-3">
                     <div>
                       <p className="mb-2 text-xs font-bold text-gray-500">商品の状態</p>
@@ -833,7 +952,9 @@ export default function InventoryManager({
                       type="submit"
                       className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-4 font-black text-white"
                     >
-                      販売済みにして収支表へ反映
+                      {entry.status === "sold"
+                        ? "変更を保存して収支表を更新"
+                        : "販売済みにして収支表へ反映"}
                     </button>
                   </form>
                 )}
