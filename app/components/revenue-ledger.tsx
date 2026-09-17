@@ -152,6 +152,8 @@ const estimatedFeeRates: Partial<Record<SalesChannel, number>> = {
   mercari: 10,
   yahoo: 5,
   ebay: 20,
+  rakuma: 10,
+  base: 10,
 };
 
 const getEstimatedSellingFee = (
