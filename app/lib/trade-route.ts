@@ -4,6 +4,7 @@ export type TradePlatform =
   | "amazon"
   | "mercari"
   | "yahoo"
+  | "yahooAuction"
   | "rakuma"
   | "base"
   | "other";
@@ -13,7 +14,8 @@ export const platformLabels: Record<TradePlatform, string> = {
   ebay: "eBay",
   amazon: "Amazon",
   mercari: "メルカリ",
-  yahoo: "Yahoo!・ヤフオク",
+  yahoo: "Yahoo!フリマ（旧PayPayフリマ）",
+  yahooAuction: "Yahoo!オークション",
   rakuma: "ラクマ",
   base: "BASE",
   other: "その他",
@@ -22,6 +24,7 @@ export const platformLabels: Record<TradePlatform, string> = {
 export const salesChannelOptions: TradePlatform[] = [
   "mercari",
   "yahoo",
+  "yahooAuction",
   "ebay",
   "rakuma",
   "base",

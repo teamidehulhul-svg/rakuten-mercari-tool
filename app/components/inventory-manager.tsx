@@ -65,6 +65,7 @@ const STORAGE_KEY = "sedori-management-ledger-v1";
 const estimatedFeeRates: Partial<Record<TradePlatform, number>> = {
   mercari: 10,
   yahoo: 5,
+  yahooAuction: 10,
   ebay: 20,
   rakuma: 10,
   base: 10,
@@ -76,6 +77,7 @@ const sourceStyles: Record<TradePlatform, string> = {
   amazon: "border-orange-200 bg-orange-50 text-orange-700",
   mercari: "border-red-200 bg-red-50 text-red-600",
   yahoo: "border-purple-200 bg-purple-50 text-purple-700",
+  yahooAuction: "border-amber-200 bg-amber-50 text-amber-700",
   rakuma: "border-sky-200 bg-sky-50 text-sky-700",
   base: "border-cyan-200 bg-cyan-50 text-cyan-700",
   other: "border-gray-200 bg-gray-50 text-gray-600",

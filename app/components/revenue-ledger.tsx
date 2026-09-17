@@ -151,6 +151,7 @@ const categoryOptions = [
 const estimatedFeeRates: Partial<Record<SalesChannel, number>> = {
   mercari: 10,
   yahoo: 5,
+  yahooAuction: 10,
   ebay: 20,
   rakuma: 10,
   base: 10,
