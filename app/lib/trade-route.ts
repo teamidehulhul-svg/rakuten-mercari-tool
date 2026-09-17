@@ -14,7 +14,7 @@ export const platformLabels: Record<TradePlatform, string> = {
   ebay: "eBay",
   amazon: "Amazon",
   mercari: "メルカリ",
-  yahoo: "Yahoo!フリマ（旧PayPayフリマ）",
+  yahoo: "Yahoo!フリマ",
   yahooAuction: "Yahoo!オークション",
   rakuma: "ラクマ",
   base: "BASE",
