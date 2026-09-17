@@ -5,6 +5,7 @@ import { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
 import {
   getSalesChannel,
   platformLabels,
+  salesChannelOptions,
   type TradePlatform,
 } from "../lib/trade-route";
 import type { ListingDraft } from "./listing-support";
@@ -65,6 +66,8 @@ const estimatedFeeRates: Partial<Record<TradePlatform, number>> = {
   mercari: 10,
   yahoo: 5,
   ebay: 20,
+  rakuma: 10,
+  base: 10,
 };
 
 const sourceStyles: Record<TradePlatform, string> = {
@@ -73,6 +76,8 @@ const sourceStyles: Record<TradePlatform, string> = {
   amazon: "border-orange-200 bg-orange-50 text-orange-700",
   mercari: "border-red-200 bg-red-50 text-red-600",
   yahoo: "border-purple-200 bg-purple-50 text-purple-700",
+  rakuma: "border-sky-200 bg-sky-50 text-sky-700",
+  base: "border-cyan-200 bg-cyan-50 text-cyan-700",
   other: "border-gray-200 bg-gray-50 text-gray-600",
 };
 
@@ -203,6 +208,8 @@ export default function InventoryManager({
   const [saleForm, setSaleForm] = useState<SaleForm | null>(null);
   const [priceEditEntryId, setPriceEditEntryId] = useState<string | null>(null);
   const [priceEditValue, setPriceEditValue] = useState("");
+  const [priceEditSalesChannel, setPriceEditSalesChannel] =
+    useState<TradePlatform>("mercari");
   const [feedback, setFeedback] = useState(initialData.error);
   const restoreInputRef = useRef<HTMLInputElement>(null);
 
@@ -296,6 +303,7 @@ export default function InventoryManager({
 
     setPriceEditEntryId(null);
     setPriceEditValue("");
+    setPriceEditSalesChannel("mercari");
     setSaleEntryId(entry.id);
     setSaleForm({
       saleDate: entry.saleDate || getJapanDate(),
@@ -328,12 +336,14 @@ export default function InventoryManager({
     closeSaleForm();
     setPriceEditEntryId(entry.id);
     setPriceEditValue(String(entry.salePrice || ""));
+    setPriceEditSalesChannel(getSalesChannel(entry));
     setFeedback("");
   };
 
   const closePriceEdit = () => {
     setPriceEditEntryId(null);
     setPriceEditValue("");
+    setPriceEditSalesChannel("mercari");
   };
 
   const handlePriceEditSubmit = (
@@ -349,14 +359,14 @@ export default function InventoryManager({
       return;
     }
 
-    const salesChannel = getSalesChannel(entry);
     const nextEntries = entries.map((item) =>
       item.id === entry.id
         ? {
             ...item,
+            salesChannel: priceEditSalesChannel,
             salePrice,
             sellingFee: calculateSellingFee(
-              salesChannel,
+              priceEditSalesChannel,
               salePrice,
               item.sellingFee
             ),
@@ -367,7 +377,7 @@ export default function InventoryManager({
     persistEntries(nextEntries);
     closePriceEdit();
     setFeedback(
-      `「${entry.productName}」の予定売価を${formatYen(salePrice)}に変更しました`
+      `「${entry.productName}」を${platformLabels[priceEditSalesChannel]}・予定売価${formatYen(salePrice)}に変更しました`
     );
   };
 
@@ -635,9 +645,9 @@ export default function InventoryManager({
                         type="button"
                         onClick={() => openPriceEdit(entry)}
                         className="shrink-0 rounded-lg bg-violet-50 px-2 py-1 text-[11px] font-black text-violet-700"
-                        aria-label={`${entry.productName}の${entry.status === "sold" ? "販売価格" : "予定売価"}を変更`}
+                        aria-label={`${entry.productName}の金額と販売場所を変更`}
                       >
-                        ✏️ 変更
+                        ✏️ 金額・販売先
                       </button>
                     </div>
                   </div>
@@ -670,7 +680,7 @@ export default function InventoryManager({
                         htmlFor={`quick-price-${entry.id}`}
                         className="font-black text-violet-900"
                       >
-                        ✏️ 予定売価を変更
+                        ✏️ 予定売価・販売場所を変更
                       </label>
                       <button
                         type="button"
@@ -679,6 +689,30 @@ export default function InventoryManager({
                       >
                         閉じる
                       </button>
+                    </div>
+                    <div className="mt-3">
+                      <label
+                        htmlFor={`quick-channel-${entry.id}`}
+                        className="mb-1 block text-xs font-bold text-violet-900"
+                      >
+                        出品・販売場所
+                      </label>
+                      <select
+                        id={`quick-channel-${entry.id}`}
+                        value={priceEditSalesChannel}
+                        onChange={(event) =>
+                          setPriceEditSalesChannel(
+                            event.target.value as TradePlatform
+                          )
+                        }
+                        className="w-full rounded-xl border border-violet-200 bg-white px-3 py-3 font-black"
+                      >
+                        {salesChannelOptions.map((value) => (
+                          <option key={value} value={value}>
+                            {platformLabels[value]}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="mt-3 flex gap-2">
                       <div className="relative min-w-0 flex-1">
@@ -705,7 +739,7 @@ export default function InventoryManager({
                       </button>
                     </div>
                     <p className="mt-2 text-[11px] font-bold text-violet-700">
-                      保存すると、見込み利益もすぐ更新されます
+                      保存すると、販売場所・手数料・見込み利益もすぐ更新されます
                     </p>
                   </form>
                 )}
@@ -758,7 +792,7 @@ export default function InventoryManager({
                       </div>
                       {entry.status !== "sold" && (
                         <p className="mt-2 text-[10px] font-bold text-gray-400">
-                          売却済みを押すと、販売金額を確認して収支へ反映します
+                          売却済みを押すと、実際に売れた場所と金額を選んで収支へ反映します
                         </p>
                       )}
                     </div>
@@ -787,7 +821,7 @@ export default function InventoryManager({
                     className="mt-4 space-y-4 rounded-2xl border border-violet-100 bg-violet-50 p-4"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="font-black text-violet-900">✅ 販売内容を登録</h3>
+                      <h3 className="font-black text-violet-900">✅ 売れた場所と金額を登録</h3>
                       <button
                         type="button"
                         onClick={closeSaleForm}
@@ -798,7 +832,10 @@ export default function InventoryManager({
                     </div>
 
                     <div className="rounded-xl bg-white p-3">
-                      <p className="text-xs font-bold text-gray-500">販売ルート</p>
+                      <p className="text-xs font-bold text-gray-500">売れた場所</p>
+                      <p className="mt-1 text-[11px] font-bold text-violet-700">
+                        複数出品していても、実際に売れた場所を選ぶだけです
+                      </p>
                       <div className="mt-2 grid grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)] items-center gap-2">
                         <span className="truncate rounded-lg bg-gray-50 px-3 py-3 text-center text-sm font-black">
                           {platformLabels[entry.source]}
@@ -830,9 +867,9 @@ export default function InventoryManager({
                           }}
                           className="min-w-0 rounded-lg border border-violet-200 bg-white px-2 py-3 text-sm font-black"
                         >
-                          {Object.entries(platformLabels).map(([value, label]) => (
+                          {salesChannelOptions.map((value) => (
                             <option key={value} value={value}>
-                              {label}
+                              {platformLabels[value]}
                             </option>
                           ))}
                         </select>
