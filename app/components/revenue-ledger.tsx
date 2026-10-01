@@ -171,7 +171,14 @@ const getEstimatedSellingFee = (
   return String(Math.floor(salePrice * (rate / 100)));
 };
 
-const formatYen = (value: number) => `${value.toLocaleString("ja-JP")}円`;
+const toSafeAmount = (value: number | undefined) => {
+  const amount = Number(value);
+
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const formatYen = (value: number) =>
+  `${toSafeAmount(value).toLocaleString("ja-JP")}円`;
 
 const getJapanDate = () =>
   new Intl.DateTimeFormat("en-CA", {
@@ -201,11 +208,11 @@ const createEmptyForm = (): LedgerForm => {
 };
 
 const calculateProfit = (entry: LedgerEntry) =>
-  entry.salePrice -
-  entry.purchasePrice -
-  entry.sellingFee -
-  entry.shippingCost -
-  entry.otherExpenses;
+  toSafeAmount(entry.salePrice) -
+  toSafeAmount(entry.purchasePrice) -
+  toSafeAmount(entry.sellingFee) -
+  toSafeAmount(entry.shippingCost) -
+  toSafeAmount(entry.otherExpenses);
 
 const getEntryMonth = (entry: LedgerEntry) =>
   (entry.status === "sold" ? entry.saleDate : entry.purchaseDate).slice(0, 7);
@@ -336,13 +343,13 @@ export default function RevenueLedger({
     () =>
       soldEntriesForMonth.reduce(
         (summary, entry) => ({
-          sales: summary.sales + entry.salePrice,
-          purchases: summary.purchases + entry.purchasePrice,
+          sales: summary.sales + toSafeAmount(entry.salePrice),
+          purchases: summary.purchases + toSafeAmount(entry.purchasePrice),
           expenses:
             summary.expenses +
-            entry.sellingFee +
-            entry.shippingCost +
-            entry.otherExpenses,
+            toSafeAmount(entry.sellingFee) +
+            toSafeAmount(entry.shippingCost) +
+            toSafeAmount(entry.otherExpenses),
           profit: summary.profit + calculateProfit(entry),
         }),
         { sales: 0, purchases: 0, expenses: 0, profit: 0 }
@@ -395,6 +402,7 @@ export default function RevenueLedger({
     1,
     ...chartData.map((item) => Math.abs(item.profit))
   );
+  const hasChartData = chartData.some((item) => item.profit !== 0);
   const stockCount = routeEntries.filter((entry) => entry.status === "stock").length;
 
   const updateForm = <Key extends keyof LedgerForm>(
@@ -875,36 +883,74 @@ export default function RevenueLedger({
 
       <section className="grid gap-5 lg:grid-cols-2">
         <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-black">📈 月別の純利益</h2>
-          <div className="mt-6 flex h-48 items-end gap-2">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black">📊 月別の純利益</h2>
+              <p className="mt-1 text-xs font-bold text-gray-500">
+                選択月までの6か月
+              </p>
+            </div>
+            <div className="flex gap-3 text-[10px] font-bold text-gray-500 sm:text-xs">
+              <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-violet-500" />利益</span>
+              <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-red-500" />赤字</span>
+            </div>
+          </div>
+
+          <div
+            className="mt-5 grid grid-cols-6 gap-1.5 sm:gap-3"
+            role="img"
+            aria-label="直近6か月の月別純利益を表す棒グラフ"
+          >
             {chartData.map((item) => {
-              const height = Math.max(6, (Math.abs(item.profit) / maxChartProfit) * 100);
+              const barHeight =
+                item.profit === 0
+                  ? 0
+                  : Math.max(8, Math.round((Math.abs(item.profit) / maxChartProfit) * 64));
 
               return (
-                <div key={item.value} className="flex min-w-0 flex-1 flex-col items-center justify-end">
-                  <span className="mb-2 text-[10px] font-bold text-gray-600 sm:text-xs">
-                    {item.profit === 0
-                      ? "0"
-                      : `${item.profit > 0 ? "+" : ""}${Math.round(
-                          item.profit / 1000
-                        )}千`}
-                  </span>
-                  <div
-                    className={`w-full max-w-10 rounded-t-lg ${
-                      item.profit < 0
-                        ? "bg-gradient-to-t from-red-500 to-orange-300"
-                        : "bg-gradient-to-t from-violet-600 to-pink-400"
+                <div key={item.value} className="min-w-0 text-center">
+                  <p
+                    className={`h-8 text-[9px] font-black leading-4 sm:text-xs ${
+                      item.profit < 0 ? "text-red-600" : "text-violet-700"
                     }`}
-                    style={{ height: `${height}%` }}
                     title={`${item.value}: ${formatYen(item.profit)}`}
-                  />
-                  <span className="mt-2 text-xs font-bold text-gray-500">
+                  >
+                    {item.profit >= 0 ? "+" : "−"}¥
+                    {Math.abs(item.profit).toLocaleString("ja-JP")}
+                  </p>
+
+                  <div className="relative h-36" aria-hidden="true">
+                    <div className="absolute inset-x-0 top-1/2 h-px bg-gray-300" />
+                    {item.profit > 0 && (
+                      <div
+                        className="absolute bottom-1/2 left-1/2 w-[70%] max-w-10 -translate-x-1/2 rounded-t-md bg-gradient-to-t from-violet-600 to-pink-400 shadow-sm"
+                        style={{ height: `${barHeight}px` }}
+                      />
+                    )}
+                    {item.profit < 0 && (
+                      <div
+                        className="absolute left-1/2 top-1/2 w-[70%] max-w-10 -translate-x-1/2 rounded-b-md bg-gradient-to-b from-red-500 to-orange-300 shadow-sm"
+                        style={{ height: `${barHeight}px` }}
+                      />
+                    )}
+                    {item.profit === 0 && (
+                      <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-300" />
+                    )}
+                  </div>
+
+                  <p className="mt-2 text-[11px] font-black text-gray-600 sm:text-sm">
                     {item.label}
-                  </span>
+                  </p>
                 </div>
               );
             })}
           </div>
+
+          {!hasChartData && (
+            <p className="mt-4 rounded-xl bg-gray-50 p-3 text-center text-xs font-bold text-gray-500">
+              販売済みの商品を登録すると、月ごとの棒グラフが伸びます
+            </p>
+          )}
         </div>
 
         <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
