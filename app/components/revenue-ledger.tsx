@@ -980,7 +980,7 @@ export default function RevenueLedger({
           </div>
 
           <div
-            className="mt-5 grid grid-cols-6 gap-1.5 sm:gap-3"
+            className="mt-5 grid grid-cols-6 gap-x-1.5 gap-y-8 sm:gap-x-3"
             role="img"
             aria-label={`${selectedYear}年1月から12月の月別純利益を表す棒グラフ`}
           >
@@ -992,8 +992,11 @@ export default function RevenueLedger({
 
               return (
                 <div key={item.value} className="min-w-0 text-center">
+                  <p className="text-[11px] font-black text-gray-600 sm:text-sm">
+                    {item.label}
+                  </p>
                   <p
-                    className={`h-8 text-[9px] font-black leading-4 sm:text-xs ${
+                    className={`mt-1 h-8 text-[9px] font-black leading-4 sm:text-xs ${
                       item.profit < 0 ? "text-red-600" : "text-violet-700"
                     }`}
                     title={`${item.value}: ${formatYen(item.profit)}`}
@@ -1020,10 +1023,6 @@ export default function RevenueLedger({
                       <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-300" />
                     )}
                   </div>
-
-                  <p className="mt-2 text-[11px] font-black text-gray-600 sm:text-sm">
-                    {item.label}
-                  </p>
                 </div>
               );
             })}
