@@ -217,22 +217,20 @@ const calculateProfit = (entry: LedgerEntry) =>
 const getEntryMonth = (entry: LedgerEntry) =>
   (entry.status === "sold" ? entry.saleDate : entry.purchaseDate).slice(0, 7);
 
-const getRecentMonths = (endingMonth: string) => {
-  const [year, month] = endingMonth.split("-").map(Number);
-
-  return Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(year, month - 1 - (5 - index), 1);
-    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}`;
-
-    return {
-      value,
-      label: `${date.getMonth() + 1}月`,
-    };
-  });
-};
+const summarizeEntries = (entries: LedgerEntry[]) =>
+  entries.reduce(
+    (summary, entry) => ({
+      sales: summary.sales + toSafeAmount(entry.salePrice),
+      purchases: summary.purchases + toSafeAmount(entry.purchasePrice),
+      expenses:
+        summary.expenses +
+        toSafeAmount(entry.sellingFee) +
+        toSafeAmount(entry.shippingCost) +
+        toSafeAmount(entry.otherExpenses),
+      profit: summary.profit + calculateProfit(entry),
+    }),
+    { sales: 0, purchases: 0, expenses: 0, profit: 0 }
+  );
 
 const readStoredLedger = () => {
   if (typeof window === "undefined") {
@@ -340,21 +338,21 @@ export default function RevenueLedger({
   );
 
   const monthlySummary = useMemo(
-    () =>
-      soldEntriesForMonth.reduce(
-        (summary, entry) => ({
-          sales: summary.sales + toSafeAmount(entry.salePrice),
-          purchases: summary.purchases + toSafeAmount(entry.purchasePrice),
-          expenses:
-            summary.expenses +
-            toSafeAmount(entry.sellingFee) +
-            toSafeAmount(entry.shippingCost) +
-            toSafeAmount(entry.otherExpenses),
-          profit: summary.profit + calculateProfit(entry),
-        }),
-        { sales: 0, purchases: 0, expenses: 0, profit: 0 }
-      ),
+    () => summarizeEntries(soldEntriesForMonth),
     [soldEntriesForMonth]
+  );
+
+  const selectedYear = selectedMonth.slice(0, 4) || getJapanDate().slice(0, 4);
+  const soldEntriesForYear = useMemo(
+    () =>
+      routeEntries.filter(
+        (entry) => entry.status === "sold" && entry.saleDate.startsWith(selectedYear)
+      ),
+    [routeEntries, selectedYear]
+  );
+  const annualSummary = useMemo(
+    () => summarizeEntries(soldEntriesForYear),
+    [soldEntriesForYear]
   );
 
   const visibleEntries = useMemo(
@@ -369,19 +367,25 @@ export default function RevenueLedger({
     [routeEntries, selectedMonth]
   );
 
-  const chartData = useMemo(() => {
-    const months = getRecentMonths(selectedMonth);
+  const chartData = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, index) => {
+        const monthNumber = index + 1;
+        const month = `${selectedYear}-${String(monthNumber).padStart(2, "0")}`;
 
-    return months.map((month) => ({
-      ...month,
-      profit: routeEntries
-        .filter(
-          (entry) =>
-            entry.status === "sold" && entry.saleDate.startsWith(month.value)
-        )
-        .reduce((total, entry) => total + calculateProfit(entry), 0),
-    }));
-  }, [routeEntries, selectedMonth]);
+        return {
+          value: month,
+          label: `${monthNumber}月`,
+          profit: routeEntries
+            .filter(
+              (entry) =>
+                entry.status === "sold" && entry.saleDate.startsWith(month)
+            )
+            .reduce((total, entry) => total + calculateProfit(entry), 0),
+        };
+      }),
+    [routeEntries, selectedYear]
+  );
 
   const categoryData = useMemo(() => {
     const totals = new Map<string, number>();
@@ -429,6 +433,20 @@ export default function RevenueLedger({
       salesChannel,
       sellingFee: getEstimatedSellingFee(salesChannel, current.salePrice),
     }));
+  };
+
+  const changeSelectedYear = (difference: number) => {
+    setSelectedMonth((current) => {
+      const [year, month = "01"] = current.split("-");
+      const parsedYear = Number(year);
+      const baseYear =
+        Number.isFinite(parsedYear) && parsedYear > 0
+          ? parsedYear
+          : Number(getJapanDate().slice(0, 4));
+      const nextYear = baseYear + difference;
+
+      return `${nextYear}-${month}`;
+    });
   };
 
   const swapFilterRoute = () => {
@@ -641,6 +659,71 @@ export default function RevenueLedger({
           <p className="mt-2 text-xl font-black text-emerald-900">
             {formatYen(monthlySummary.profit)}
           </p>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+        <div className="bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-500 p-5 text-white sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold text-white/75">1月〜12月の合計</p>
+              <h2 className="mt-1 text-xl font-black">🗓️ {selectedYear}年の年間収支</h2>
+              <p className="mt-1 text-xs font-bold text-white/75">
+                販売 {soldEntriesForYear.length}件
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => changeSelectedYear(-1)}
+                className="min-h-10 rounded-xl bg-white/15 px-3 text-xs font-black backdrop-blur transition active:scale-95"
+                aria-label="前年の年間収支を表示"
+              >
+                ← 前年
+              </button>
+              <button
+                type="button"
+                onClick={() => changeSelectedYear(1)}
+                className="min-h-10 rounded-xl bg-white/15 px-3 text-xs font-black backdrop-blur transition active:scale-95"
+                aria-label="翌年の年間収支を表示"
+              >
+                翌年 →
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl bg-white/15 p-4 text-center backdrop-blur">
+            <p className="text-xs font-bold text-white/75">年間純利益</p>
+            <p
+              className={`mt-1 text-3xl font-black sm:text-4xl ${
+                annualSummary.profit < 0 ? "text-yellow-200" : "text-white"
+              }`}
+            >
+              {annualSummary.profit >= 0 ? "+" : ""}
+              {formatYen(annualSummary.profit)}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-px bg-gray-100">
+          <div className="bg-blue-50 p-4 text-center">
+            <p className="text-[11px] font-bold text-blue-700 sm:text-xs">年間売上</p>
+            <p className="mt-1 text-sm font-black text-blue-900 sm:text-lg">
+              {formatYen(annualSummary.sales)}
+            </p>
+          </div>
+          <div className="bg-orange-50 p-4 text-center">
+            <p className="text-[11px] font-bold text-orange-700 sm:text-xs">年間仕入れ</p>
+            <p className="mt-1 text-sm font-black text-orange-900 sm:text-lg">
+              {formatYen(annualSummary.purchases)}
+            </p>
+          </div>
+          <div className="bg-pink-50 p-4 text-center">
+            <p className="text-[11px] font-bold text-pink-700 sm:text-xs">年間経費</p>
+            <p className="mt-1 text-sm font-black text-pink-900 sm:text-lg">
+              {formatYen(annualSummary.expenses)}
+            </p>
+          </div>
         </div>
       </section>
 
@@ -885,9 +968,9 @@ export default function RevenueLedger({
         <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black">📊 月別の純利益</h2>
+              <h2 className="text-lg font-black">📊 {selectedYear}年の月別純利益</h2>
               <p className="mt-1 text-xs font-bold text-gray-500">
-                選択月までの6か月
+                1月〜12月をまとめて表示
               </p>
             </div>
             <div className="flex gap-3 text-[10px] font-bold text-gray-500 sm:text-xs">
@@ -899,7 +982,7 @@ export default function RevenueLedger({
           <div
             className="mt-5 grid grid-cols-6 gap-1.5 sm:gap-3"
             role="img"
-            aria-label="直近6か月の月別純利益を表す棒グラフ"
+            aria-label={`${selectedYear}年1月から12月の月別純利益を表す棒グラフ`}
           >
             {chartData.map((item) => {
               const barHeight =
